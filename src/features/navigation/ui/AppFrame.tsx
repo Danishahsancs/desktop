@@ -683,7 +683,7 @@ export default function AppFrame({ children }: AppFrameProps) {
     <div
       ref={appFrameRef}
       data-custom-bg={hasCustomBg ? "true" : undefined}
-      className="relative flex flex-row h-full w-full overflow-hidden rounded-5xl bg-bg-canvas p-1.5 gap-1.5"
+      className="relative flex flex-col md:flex-row h-full w-full overflow-hidden md:rounded-5xl bg-bg-canvas gap-1.5 pt-[calc(0.375rem+env(safe-area-inset-top))] pr-[calc(0.375rem+env(safe-area-inset-right))] pb-[calc(0.375rem+env(safe-area-inset-bottom))] pl-[calc(0.375rem+env(safe-area-inset-left))]"
       onScroll={(e) => {
         if (e.currentTarget.scrollLeft !== 0) e.currentTarget.scrollLeft = 0;
         if (e.currentTarget.scrollTop !== 0) e.currentTarget.scrollTop = 0;
@@ -691,7 +691,7 @@ export default function AppFrame({ children }: AppFrameProps) {
     >
       {hasCustomBg && backgroundImage && (
         <div
-          className="absolute inset-0 z-0 pointer-events-none overflow-hidden rounded-5xl"
+          className="absolute inset-0 z-0 pointer-events-none overflow-hidden md:rounded-5xl"
           aria-hidden="true"
         >
           <img
@@ -714,7 +714,7 @@ export default function AppFrame({ children }: AppFrameProps) {
 
       <aside
         ref={sidebarRef}
-        className="w-[58px] h-full shrink-0 z-[45] relative"
+        className="order-last md:order-none w-full h-[56px] md:w-[58px] md:h-full shrink-0 z-[45] relative"
       >
         <Sidebar
           searchOpen={searchOpen}
@@ -722,15 +722,15 @@ export default function AppFrame({ children }: AppFrameProps) {
         />
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0 h-full relative gap-1.5 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 md:h-full relative gap-1.5 overflow-hidden">
         <main
           data-custom-bg={hasCustomBg ? "true" : undefined}
           className={`flex-1 min-w-0 flex flex-col relative h-full ${
             hasCustomBg ? "" : "bg-bg-primary"
           } rounded-sm ${
             isFullscreenPlayer
-              ? "rounded-tr-none"
-              : "rounded-tr-xl"
+              ? "md:rounded-tr-none"
+              : "max-md:rounded-t-xl md:rounded-tr-xl"
           } overflow-hidden`}
           style={mainStyle}
         >
@@ -767,12 +767,12 @@ export default function AppFrame({ children }: AppFrameProps) {
                 <motion.aside
                   key="right-drawer"
                   ref={queueDrawerRef}
-                  initial={{ x: RIGHT_DRAWER_WIDTH }}
+                  initial={{ x: "100%" }}
                   animate={{ x: 0 }}
-                  exit={{ x: RIGHT_DRAWER_WIDTH }}
+                  exit={{ x: "100%" }}
                   transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-                  className="pointer-events-auto absolute inset-y-0 right-0 z-[50]"
-                  style={{ width: RIGHT_DRAWER_WIDTH }}
+                  className="pointer-events-auto absolute inset-y-0 right-0 z-[50] w-full md:w-[var(--right-drawer-width)]"
+                  style={{ "--right-drawer-width": `${RIGHT_DRAWER_WIDTH}px` } as React.CSSProperties}
                 >
                   <RightDrawer
                     activeTab={rightDrawerTab}
@@ -833,16 +833,17 @@ export default function AppFrame({ children }: AppFrameProps) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -12, scale: 0.99 }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className={`absolute right-0 z-[60] flex flex-col items-center pointer-events-none pt-[56px]`}
+            className="absolute z-[60] flex flex-col items-center pointer-events-none pt-[env(safe-area-inset-top)] md:pt-[56px] left-[var(--search-left-mobile)] md:left-[var(--search-left)]"
             style={{
-              left: SIDEBAR_WIDTH + SHELL_EDGE_GAP,
+              "--search-left": `${SIDEBAR_WIDTH + SHELL_EDGE_GAP}px`,
+              "--search-left-mobile": `${SHELL_EDGE_GAP}px`,
               right: SHELL_EDGE_GAP,
               top: 12,
-            }}
+            } as React.CSSProperties}
           >
             {/* 1. Search Input Island */}
             <div
-              className="w-[min(660px,calc(100vw-72px))] h-[54px] rounded-[8px] pointer-events-auto flex items-center px-[18px] gap-[14px] bg-bg-panel/95 border border-border-primary/50 backdrop-blur-2xl"
+              className="max-md:w-full md:w-[min(660px,calc(100vw-72px))] h-[54px] rounded-[8px] pointer-events-auto flex items-center px-[18px] gap-[14px] bg-bg-panel/95 border border-border-primary/50 backdrop-blur-2xl"
             >
               <span className="shrink-0 flex items-center justify-center text-text-tertiary">
                 <AnimatePresence mode="wait" initial={false}>
@@ -923,7 +924,7 @@ export default function AppFrame({ children }: AppFrameProps) {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -6, scale: 0.99 }}
                   transition={{ duration: 0.1, ease: [0.16, 1, 0.3, 1] }}
-                  className="w-[min(660px,calc(100vw-72px))] mt-[8px] max-h-[500px] h-[500px] rounded-[8px] pointer-events-auto flex flex-col overflow-hidden bg-bg-panel/95 border border-border-primary/50 backdrop-blur-2xl"
+                  className="max-md:w-full md:w-[min(660px,calc(100vw-72px))] mt-[8px] max-h-[500px] h-[min(500px,calc(100dvh-220px))] md:h-[500px] rounded-[8px] pointer-events-auto flex flex-col overflow-hidden bg-bg-panel/95 border border-border-primary/50 backdrop-blur-2xl"
                 >
                   <div className="flex gap-[6px] px-[14px] pt-[12px] pb-[6px] shrink-0 overflow-x-auto">
                     {filterKeys.map((key) => {
@@ -1036,7 +1037,7 @@ export default function AppFrame({ children }: AppFrameProps) {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -6, scale: 0.99 }}
                   transition={{ duration: 0.1, ease: [0.16, 1, 0.3, 1] }}
-                  className="w-[min(660px,calc(100vw-72px))] mt-[8px] max-h-[480px] h-auto rounded-[8px] pointer-events-auto flex flex-col overflow-hidden bg-bg-panel/95 border border-border-primary/50 backdrop-blur-2xl"
+                  className="max-md:w-full md:w-[min(660px,calc(100vw-72px))] mt-[8px] max-h-[min(480px,calc(100dvh-220px))] md:max-h-[480px] h-auto rounded-[8px] pointer-events-auto flex flex-col overflow-hidden bg-bg-panel/95 border border-border-primary/50 backdrop-blur-2xl"
                 >
                   <SearchHistoryList
                     onSelectQuery={handleSelectHistoryQuery}
@@ -1067,6 +1068,7 @@ export default function AppFrame({ children }: AppFrameProps) {
       <UpdateModal />
       <UpdateToastBridge />
       <WindowControls
+        className="max-md:hidden"
         isFullscreen={isFullscreenPlayer}
         style={{
           top: isFullscreenPlayer ? 12 : 18,

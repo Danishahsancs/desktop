@@ -362,6 +362,8 @@
     "instrumental": "♪ инструментал",
     "no_lyrics_found": "Похоже, для этого трека пока нет текста.",
     "close_fullscreen": "Закрыть полноэкранный режим",
+    "tab_player": "Плеер",
+    "tab_lyrics": "Текст",
     "failed_load_lyrics": "Не удалось загрузить текст песни.",
     "lyrics_offset": "Смещение текста",
     "earlier": "Раньше",

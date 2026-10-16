@@ -358,6 +358,8 @@
     "instrumental": "♪ instrumental",
     "no_lyrics_found": "Looks like we don't have lyrics for this one yet.",
     "close_fullscreen": "Close fullscreen",
+    "tab_player": "Player",
+    "tab_lyrics": "Lyrics",
     "failed_load_lyrics": "Failed to load lyrics.",
     "lyrics_offset": "Lyrics offset",
     "earlier": "Earlier",

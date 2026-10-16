@@ -299,6 +299,7 @@ export function FullscreenPlayer({
   const player = usePlayerState();
   const coverUrl = player.currentTrack?.coverUrl;
   const kawarpSrc = useCoverSrc(coverUrl);
+  const [mobileTab, setMobileTab] = useState<"player" | "lyrics">("player");
 
   useEffect(() => {
     if (!player.currentTrack) {
@@ -368,14 +369,23 @@ export function FullscreenPlayer({
 
       <div className="absolute inset-0 z-[1] bg-black/40" />
 
-      <div className="absolute inset-0 z-10 flex">
-        <div className="flex-1 flex flex-col items-center justify-center gap-5">
+      {/* below md the two columns become tabs (mobileTab); md+ shows both side by side */}
+      <div className="absolute inset-0 z-10 flex safe-area-pad">
+        <div
+          className={`flex-1 max-md:min-w-0 flex flex-col items-center justify-center gap-5 max-md:px-6 ${
+            mobileTab === "player" ? "" : "max-md:hidden"
+          }`}
+        >
           <PlayerUiElements onClose={onClose} />
         </div>
 
-        <div className="flex-1 h-full min-h-0 pl-2 pr-6 flex flex-col relative">
+        <div
+          className={`flex-1 max-md:min-w-0 h-full min-h-0 pl-2 pr-6 max-md:px-0 max-md:pt-[56px] flex flex-col relative ${
+            mobileTab === "lyrics" ? "" : "max-md:hidden"
+          }`}
+        >
           {showProviderIsland && (
-            <div className="absolute top-[12px] left-1/2 -translate-x-1/2 z-30 pointer-events-none flex justify-center">
+            <div className="absolute top-[12px] max-md:top-[60px] left-1/2 -translate-x-1/2 z-30 pointer-events-none flex justify-center">
               <LyricsProviderIsland />
             </div>
           )}
@@ -481,10 +491,32 @@ export function FullscreenPlayer({
         title={t("player.close_fullscreen") || "Close"}
         onClick={onClose}
         data-no-window-drag
-        className="absolute top-[12px] left-[12px] z-30 inline-flex h-[32px] w-[32px] items-center justify-center rounded-lg border-none bg-black/50 backdrop-blur-xl text-white/80 hover:text-white hover:bg-white/10 active:scale-[0.94] transition-all cursor-pointer select-none pointer-events-auto"
+        className="absolute top-[calc(12px+env(safe-area-inset-top))] left-[calc(12px+env(safe-area-inset-left))] z-30 inline-flex h-[32px] w-[32px] max-md:h-[40px] max-md:w-[40px] items-center justify-center rounded-lg border-none bg-black/50 backdrop-blur-xl text-white/80 hover:text-white hover:bg-white/10 active:scale-[0.94] transition-all cursor-pointer select-none pointer-events-auto"
       >
         <DownLine size={18} />
       </button>
+
+      <div
+        role="tablist"
+        className="md:hidden absolute top-[calc(12px+env(safe-area-inset-top))] left-1/2 -translate-x-1/2 z-30 flex items-center gap-[2px] rounded-lg bg-black/50 backdrop-blur-xl p-[3px]"
+      >
+        {(["player", "lyrics"] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            role="tab"
+            aria-selected={mobileTab === tab}
+            onClick={() => setMobileTab(tab)}
+            className={`h-[34px] px-[16px] rounded-md border-none text-[14px] cursor-pointer transition-colors ${
+              mobileTab === tab
+                ? "bg-white/15 text-white"
+                : "bg-transparent text-white/60"
+            }`}
+          >
+            {tab === "player" ? t("player.tab_player") : t("player.tab_lyrics")}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
