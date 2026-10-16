@@ -32,3 +32,10 @@ export function nativeMediaUrl(url: string): string {
   proxied.searchParams.set("u", url);
   return proxied.toString();
 }
+
+// whether the renderer should run the wasm signer itself: always in the native
+// shell, and on the vite dev server so a plain browser tab can still sign in
+// (production web builds stay unsigned, electron signs in its main process)
+export function shouldSignInRenderer(): boolean {
+  return !isElectron() && (isNativeApp() || import.meta.env.DEV);
+}

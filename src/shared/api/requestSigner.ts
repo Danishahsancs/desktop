@@ -1,4 +1,4 @@
-import { isNativeApp } from "@/shared/platform";
+import { shouldSignInRenderer } from "@/shared/platform";
 
 // signs outgoing api requests with canonical headers: x-liner-signature, timestamp, nonce
 export interface SignedHeaders {
@@ -47,7 +47,7 @@ export async function signApiRequest(
   body?: string | null,
   customTimestamp?: number,
 ): Promise<SignedHeaders> {
-  if (!isElectron() && isNativeApp()) {
+  if (shouldSignInRenderer()) {
     return signInWebView(method, path, body, customTimestamp);
   }
 
