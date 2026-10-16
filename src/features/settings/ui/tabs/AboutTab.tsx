@@ -1,3 +1,4 @@
+import { isNativeApp } from "@/shared/platform";
 import { useState, useEffect, useMemo } from "react";
 import { FaTelegramPlane, FaGithub, FaGlobe } from "react-icons/fa";
 import { Refresh1Line, CheckLine } from "@mingcute/react";
@@ -177,7 +178,8 @@ export function AboutTab({ searchQuery }: { searchQuery?: string }) {
           {lastCheckedTime ? ` · ${lastCheckedTime}` : ""}
         </span>
 
-        {/* Update Checker Button */}
+        {/* Update Checker Button (desktop only: android updates come as a new apk) */}
+        {!isNativeApp() && (
         <div className="w-full flex items-center justify-center mb-[20px]">
           <Button
             variant="secondary"
@@ -195,6 +197,7 @@ export function AboutTab({ searchQuery }: { searchQuery?: string }) {
               : t("settings.about.check_updates")}
           </Button>
         </div>
+        )}
 
         {/* Social & Support Links */}
         <div className="flex flex-wrap items-center justify-center gap-[6px] w-full pt-[16px] border-t border-border-primary/30">

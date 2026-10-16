@@ -673,11 +673,11 @@ function MiniPlayer({
         <div
           className={`relative grid h-full pointer-events-none ${
             embedded
-              ? "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[280px_minmax(0,1fr)_260px]"
+              ? "grid-cols-[minmax(0,1fr)_auto] wide:grid-cols-[280px_minmax(0,1fr)_260px]"
               : "grid-cols-[286px_minmax(0,1fr)]"
           } ${!usesRoundedStyle && !embedded ? "pb-[4px]" : ""}`}
         >
-          <div className="flex h-full min-w-0 items-center gap-[12px] pl-[12px] pr-[4px] md:gap-[16px] md:px-[18px] pt-[1px] pointer-events-none cursor-default">
+          <div className="flex h-full min-w-0 items-center gap-[12px] pl-[12px] pr-[4px] wide:gap-[16px] wide:px-[18px] pt-[1px] pointer-events-none cursor-default">
             <div
               role="button"
               tabIndex={0}
@@ -759,13 +759,13 @@ function MiniPlayer({
           </div>
 
           <div
-            className={`flex h-full items-center pl-[4px] pr-[10px] md:pl-[10px] md:pr-[18px] pointer-events-none ${
-              embedded ? "md:col-start-3" : ""
+            className={`flex h-full items-center pl-[4px] pr-[10px] wide:pl-[10px] wide:pr-[18px] pointer-events-none ${
+              embedded ? "wide:col-start-3" : ""
             }`}
           >
             {/* compact transport for phone widths; the centred one below is md+ */}
             <div
-              className="md:hidden flex items-center gap-[4px] pointer-events-auto prevent-seek cursor-default"
+              className="wide:hidden flex items-center gap-[4px] pointer-events-auto prevent-seek cursor-default"
               onPointerDown={(e) => e.stopPropagation()}
             >
               <button
@@ -810,7 +810,7 @@ function MiniPlayer({
               </button>
             </div>
             <div
-              className="max-md:hidden ml-auto flex items-center gap-[2px] rounded-lg bg-bg-toolbox p-[3px] pointer-events-auto prevent-seek cursor-default"
+              className="narrow:hidden ml-auto flex items-center gap-[2px] rounded-lg bg-bg-toolbox p-[3px] pointer-events-auto prevent-seek cursor-default"
               onPointerDown={(e) => e.stopPropagation()}
             >
               <button
@@ -942,7 +942,7 @@ function MiniPlayer({
           </div>
         </div>
 
-        <div className="max-md:hidden pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div className="narrow:hidden pointer-events-none absolute inset-0 flex items-center justify-center">
           <div
             className="pointer-events-auto flex items-center gap-[8px] prevent-seek cursor-default"
             onPointerDown={(e) => e.stopPropagation()}

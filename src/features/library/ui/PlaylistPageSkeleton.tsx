@@ -33,25 +33,25 @@ function PlaylistPageSkeletonComponent({
     <div
       className={`relative h-full w-full overflow-hidden bg-transparent select-none ${className}`}
     >
-      <div className="relative z-10 flex flex-row items-stretch gap-[16px] pl-[32px] pr-[16px] h-full w-full min-h-0 box-border">
-        <aside className="shrink-0 w-[280px] self-start pt-[56px] pb-[24px]">
-          <div className="relative aspect-square w-full overflow-hidden rounded-md bg-border-alpha-14">
+      <div className="relative z-10 flex flex-row narrow:flex-col items-stretch gap-[16px] narrow:gap-0 pl-[32px] pr-[16px] narrow:px-[14px] h-full w-full min-h-0 box-border">
+        <aside className="shrink-0 w-[280px] short:w-[220px] short:pt-[52px] self-start pt-[56px] pb-[24px] narrow:w-full narrow:pt-[52px] narrow:pb-[10px] narrow:grid narrow:grid-cols-[112px_minmax(0,1fr)] narrow:gap-x-[14px] narrow:items-center">
+          <div className="relative aspect-square w-full overflow-hidden rounded-md bg-border-alpha-14 narrow:row-span-3">
             <div className="skeleton-shimmer h-full w-full" />
           </div>
 
-          <div className="skeleton-shimmer h-[26px] w-[80%] rounded-[6px] mt-[16px]" />
+          <div className="skeleton-shimmer h-[26px] w-[80%] rounded-[6px] mt-[16px] narrow:mt-0" />
           <div className="skeleton-shimmer h-[16px] w-[60%] rounded-[4px] mt-[6px]" />
           <div className="skeleton-shimmer h-[26px] w-[130px] rounded-md mt-[8px]" />
 
-          <div className="skeleton-shimmer h-[36px] w-full rounded-md mt-[16px]" />
-          <div className="mt-[8px] flex items-center gap-[8px]">
+          <div className="skeleton-shimmer h-[36px] w-full rounded-md mt-[16px] narrow:mt-[14px] narrow:col-span-2" />
+          <div className="mt-[8px] flex items-center gap-[8px] narrow:col-span-2">
             <div className="skeleton-shimmer h-[36px] flex-1 rounded-md" />
             <div className="skeleton-shimmer h-[36px] w-[36px] rounded-md" />
             <div className="skeleton-shimmer h-[36px] w-[36px] rounded-md" />
           </div>
         </aside>
 
-        <div className="min-w-0 flex-1 h-full min-h-0 overflow-hidden px-[8px] pt-[56px] pb-[24px]">
+        <div className="min-w-0 flex-1 h-full min-h-0 overflow-hidden px-[8px] narrow:px-0 pt-[56px] narrow:pt-0 pb-[24px]">
           <div className="flex flex-col">
             {Array.from({ length: 10 }).map((_, i) => (
               <div

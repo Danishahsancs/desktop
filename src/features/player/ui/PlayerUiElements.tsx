@@ -85,7 +85,7 @@ export function PlayerUiElements({
     <>
       {/* Artwork (Compact, flat, no drop shadows) */}
       <div
-        className={`relative shrink-0 overflow-hidden rounded-xl w-[280px] h-[280px] bg-black/20 ${
+        className={`relative shrink-0 overflow-hidden rounded-xl w-[280px] h-[280px] compact:w-[var(--np)] compact:h-[var(--np)] short:row-span-4 bg-black/20 ${
           coverUrl && !isCoverLoaded ? "animate-pulse" : ""
         }`}
       >
@@ -162,15 +162,15 @@ export function PlayerUiElements({
       </div>
 
       {/* Track info */}
-      <div className="w-[280px] flex items-start justify-center min-w-0">
+      <div className="w-[280px] compact:w-[var(--np)] short:w-full flex items-start justify-center min-w-0">
         <div className="flex flex-col gap-[2px] min-w-0 text-center">
           <p
-            className="m-0 text-[15px] font-[600] text-white flex items-center justify-center gap-[6px] max-w-[280px]"
+            className="m-0 text-[15px] compact:text-[19px] font-[600] text-white flex items-center justify-center gap-[6px] max-w-[280px] compact:max-w-full"
             style={{ letterSpacing: "-0.03em" }}
           >
             <span className="min-w-0 truncate">{trackTitle}</span>
           </p>
-          <p className="m-0 flex items-center justify-center gap-[5px] text-[12px] text-white/60 leading-snug max-w-[320px] overflow-hidden">
+          <p className="m-0 flex items-center justify-center gap-[5px] text-[12px] compact:text-[14px] text-white/60 leading-snug max-w-[320px] compact:max-w-full overflow-hidden">
             {track?.explicit && (
               <ExplicitBadge className="!bg-white/60 !text-black !pb-0 !leading-none shrink-0" />
             )}
@@ -196,11 +196,11 @@ export function PlayerUiElements({
         onSeek={(pos) => playerEngine.seek(pos)}
         showTime
         size="md"
-        className="w-[320px]"
+        className="w-[320px] compact:w-[var(--np)] short:w-full"
       />
 
       {/* Primary Playback Controls */}
-      <div className="flex items-center gap-[14px]">
+      <div className="flex items-center gap-[14px] compact:gap-[20px] compact:scale-[1.3] compact:my-[6px] short:scale-[1.1] short:my-0">
         <button
           type="button"
           aria-label="Shuffle"
@@ -265,7 +265,7 @@ export function PlayerUiElements({
       </div>
 
       {/* Volume (Compact smooth slider, size sm) */}
-      <VolumePicker className="w-[180px]" size="sm" />
+      <VolumePicker className="w-[180px] compact:w-[min(var(--np),240px)]" size="sm" />
     </>
   );
 }

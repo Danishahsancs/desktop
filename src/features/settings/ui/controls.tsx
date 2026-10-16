@@ -36,24 +36,24 @@ export function SettingRow({
   }
 
   return (
-    <div className="flex items-center justify-between gap-[16px] py-[13px]">
-      <div className="flex min-w-0 max-w-[360px] flex-col gap-[2px]">
+    <div className="flex flex-wrap items-center justify-between gap-x-[16px] gap-y-[10px] py-[13px] compact:py-[14px]">
+      <div className="flex min-w-0 max-w-[360px] grow basis-[200px] flex-col gap-[2px]">
         <span
-          className="text-text-primary text-[13px] font-[500] leading-snug"
+          className="text-text-primary text-[13px] compact:text-[15px] font-[500] leading-snug"
           style={font}
         >
           {title}
         </span>
         {description ? (
           <span
-            className="text-text-tertiary text-[12.5px] leading-relaxed"
+            className="text-text-tertiary text-[12.5px] compact:text-[13.5px] leading-relaxed"
             style={font}
           >
             {description}
           </span>
         ) : null}
       </div>
-      {control ? <div className="shrink-0">{control}</div> : null}
+      {control ? <div className="shrink-0 max-w-full">{control}</div> : null}
     </div>
   );
 }
@@ -94,14 +94,14 @@ export function SettingBlock({
     <div className="flex flex-col gap-[10px] py-[13px]">
       <div className="flex min-w-0 max-w-[460px] flex-col gap-[2px]">
         <span
-          className="text-text-primary text-[13px] font-[500] leading-snug"
+          className="text-text-primary text-[13px] compact:text-[15px] font-[500] leading-snug"
           style={font}
         >
           {title}
         </span>
         {description ? (
           <span
-            className="text-text-tertiary text-[12.5px] leading-relaxed"
+            className="text-text-tertiary text-[12.5px] compact:text-[13.5px] leading-relaxed"
             style={font}
           >
             {description}
@@ -156,7 +156,7 @@ export function SegmentedControl<T extends string>({
     <div
       role={ariaLabel ? "group" : undefined}
       aria-label={ariaLabel}
-      className={`inline-flex w-fit shrink-0 items-center gap-[1px] rounded-lg p-[3px] transition-opacity ${
+      className={`inline-flex w-fit max-w-full shrink-0 items-center gap-[1px] rounded-lg p-[3px] overflow-x-auto transition-opacity ${
         disabled
           ? "bg-border-alpha-10 opacity-50 cursor-not-allowed pointer-events-none"
           : "bg-border-alpha-14"
@@ -171,7 +171,7 @@ export function SegmentedControl<T extends string>({
             disabled={disabled}
             onClick={() => !disabled && onChange(opt.value)}
             aria-pressed={isActive}
-            className={`inline-flex h-[26px] items-center whitespace-nowrap rounded-md border-0 px-[11px] text-[12.5px] leading-none transition-colors ${
+            className={`inline-flex h-[26px] compact:h-[34px] items-center whitespace-nowrap rounded-md border-0 px-[11px] compact:px-[14px] text-[12.5px] compact:!text-[14px] leading-none transition-colors ${
               disabled
                 ? isActive
                   ? "bg-bg-primary/50 text-text-tertiary cursor-not-allowed"

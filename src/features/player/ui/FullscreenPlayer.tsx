@@ -372,20 +372,20 @@ export function FullscreenPlayer({
       {/* below md the two columns become tabs (mobileTab); md+ shows both side by side */}
       <div className="absolute inset-0 z-10 flex safe-area-pad">
         <div
-          className={`flex-1 max-md:min-w-0 flex flex-col items-center justify-center gap-5 max-md:px-6 ${
-            mobileTab === "player" ? "" : "max-md:hidden"
+          className={`flex-1 compact:min-w-0 flex flex-col items-center justify-center gap-5 compact:px-6 compact:gap-[22px] compact:[--np:min(84vw,44dvh,440px)] short:[--np:min(60dvh,36vw)] short:grid short:grid-cols-[auto_minmax(0,320px)] short:content-center short:justify-center short:justify-items-center short:gap-x-[32px] short:gap-y-[12px] short:pt-[44px] ${
+            mobileTab === "player" ? "" : "compact:hidden"
           }`}
         >
           <PlayerUiElements onClose={onClose} />
         </div>
 
         <div
-          className={`flex-1 max-md:min-w-0 h-full min-h-0 pl-2 pr-6 max-md:px-0 max-md:pt-[56px] flex flex-col relative ${
-            mobileTab === "lyrics" ? "" : "max-md:hidden"
+          className={`flex-1 compact:min-w-0 h-full min-h-0 pl-2 pr-6 compact:px-0 compact:pt-[56px] flex flex-col relative ${
+            mobileTab === "lyrics" ? "" : "compact:hidden"
           }`}
         >
           {showProviderIsland && (
-            <div className="absolute top-[12px] max-md:top-[60px] left-1/2 -translate-x-1/2 z-30 pointer-events-none flex justify-center">
+            <div className="absolute top-[12px] compact:top-[60px] left-1/2 -translate-x-1/2 z-30 pointer-events-none flex justify-center">
               <LyricsProviderIsland />
             </div>
           )}
@@ -491,14 +491,14 @@ export function FullscreenPlayer({
         title={t("player.close_fullscreen") || "Close"}
         onClick={onClose}
         data-no-window-drag
-        className="absolute top-[calc(12px+env(safe-area-inset-top))] left-[calc(12px+env(safe-area-inset-left))] z-30 inline-flex h-[32px] w-[32px] max-md:h-[40px] max-md:w-[40px] items-center justify-center rounded-lg border-none bg-black/50 backdrop-blur-xl text-white/80 hover:text-white hover:bg-white/10 active:scale-[0.94] transition-all cursor-pointer select-none pointer-events-auto"
+        className="absolute top-[calc(12px+env(safe-area-inset-top))] left-[calc(12px+env(safe-area-inset-left))] z-30 inline-flex h-[32px] w-[32px] compact:h-[40px] compact:w-[40px] items-center justify-center rounded-lg border-none bg-black/50 backdrop-blur-xl text-white/80 hover:text-white hover:bg-white/10 active:scale-[0.94] transition-all cursor-pointer select-none pointer-events-auto"
       >
         <DownLine size={18} />
       </button>
 
       <div
         role="tablist"
-        className="md:hidden absolute top-[calc(12px+env(safe-area-inset-top))] left-1/2 -translate-x-1/2 z-30 flex items-center gap-[2px] rounded-lg bg-black/50 backdrop-blur-xl p-[3px]"
+        className="roomy:hidden absolute top-[calc(12px+env(safe-area-inset-top))] left-1/2 -translate-x-1/2 z-30 flex items-center gap-[2px] rounded-lg bg-black/50 backdrop-blur-xl p-[3px]"
       >
         {(["player", "lyrics"] as const).map((tab) => (
           <button

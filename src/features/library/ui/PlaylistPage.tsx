@@ -475,9 +475,9 @@ function LibraryPlaylistContent() {
               isReady ? "opacity-100" : "opacity-0 pointer-events-none"
             }`}
           >
-            <div className="relative z-10 flex flex-row items-stretch gap-[16px] pl-[32px] pr-[16px] h-full w-full min-h-0 box-border">
+            <div className="relative z-10 flex flex-row narrow:flex-col items-stretch gap-[16px] narrow:gap-0 pl-[32px] pr-[16px] narrow:px-[14px] h-full w-full min-h-0 box-border">
               <div
-                className="shrink-0 w-[280px] self-start pt-[56px] pb-[24px]"
+                className="shrink-0 w-[280px] narrow:w-full short:w-[220px] self-start short:self-stretch short:h-full short:overflow-y-auto pt-[56px] narrow:pt-[52px] short:pt-[52px] pb-[24px] narrow:pb-[10px] short:pb-[16px]"
                 data-no-window-drag
               >
                 <EntitySidebar
@@ -775,7 +775,7 @@ function LibraryPlaylistContent() {
                     targetScrollTopRef.current = null;
                   }
                 }}
-                className="min-w-0 flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden px-[8px] pt-[56px] pb-[24px] overscroll-contain"
+                className="min-w-0 flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden px-[8px] narrow:px-0 pt-[56px] narrow:pt-0 pb-[24px] overscroll-contain"
                 style={{ willChange: "scroll-position" }}
               >
               {currentTracks.length === 0 ? (

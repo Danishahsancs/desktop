@@ -2,6 +2,38 @@
 
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *, .dark, .dark *));
 
+/* layout breakpoints
+   narrow / wide   : upright phones vs everything else (landscape phones get the
+                     side rail and side-by-side pages). shell, navigation, pages.
+   compact / roomy : narrow OR short (phones in either orientation). sheets,
+                     the full-screen player, touch-sized controls. */
+@custom-variant narrow {
+  @media (max-width: 767.98px) and (min-height: 500px) {
+    @slot;
+  }
+}
+@custom-variant wide {
+  @media (min-width: 768px), (max-height: 499.98px) {
+    @slot;
+  }
+}
+@custom-variant compact {
+  @media (max-width: 767.98px), (max-height: 499.98px) {
+    @slot;
+  }
+}
+@custom-variant roomy {
+  @media (min-width: 768px) and (min-height: 500px) {
+    @slot;
+  }
+}
+/* phones held sideways: little vertical room */
+@custom-variant short {
+  @media (max-height: 499.98px) {
+    @slot;
+  }
+}
+
 :root {
   --bg-canvas: #e4e4e7;
   --bg-surface: #ffffff;

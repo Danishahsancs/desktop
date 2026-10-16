@@ -20,3 +20,5 @@ export {
   type UseListReorderReturn,
 } from "./useListReorder";
 
+
+export { useIsCompact, useIsNarrow, COMPACT_MEDIA_QUERY, NARROW_MEDIA_QUERY } from "./useIsCompact";

@@ -69,8 +69,8 @@ export default function ConnectivityWall() {
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-bg-primary/95 p-[24px] backdrop-blur-md">
-      <div className="relative flex max-h-full w-full max-w-[520px] flex-col overflow-hidden rounded-lg border border-bg-elevated bg-bg-panel p-[28px]">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-bg-primary/95 p-[24px] short:p-[10px] safe-area-pad backdrop-blur-md">
+      <div className="relative flex max-h-full w-full max-w-[520px] flex-col overflow-hidden short:overflow-y-auto rounded-lg border border-bg-elevated bg-bg-panel p-[28px] short:p-[18px]">
         <button
           type="button"
           onClick={reset}
@@ -99,7 +99,7 @@ export default function ConnectivityWall() {
           </div>
         </div>
 
-        <div className="mt-[16px] min-h-0 flex-1 overflow-y-auto">
+        <div className="mt-[16px] min-h-0 flex-1 overflow-y-auto short:flex-none short:overflow-visible">
           <p
             className="m-0 text-[13px] font-[600] text-text-primary"
             style={{ fontFamily: "var(--font-inter), sans-serif" }}

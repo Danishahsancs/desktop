@@ -86,7 +86,7 @@ function Sidebar({ searchOpen, onSearchToggle }: SidebarProps) {
               type="button"
               aria-pressed={searchOpen}
               onClick={onSearchToggle}
-              className={`group relative inline-flex items-center justify-center max-md:!p-[10px] bg-transparent border-0 p-0 cursor-pointer active:scale-[0.96] transition-transform duration-100`}
+              className={`group relative inline-flex items-center justify-center narrow:!p-[10px] bg-transparent border-0 p-0 cursor-pointer active:scale-[0.96] transition-transform duration-100`}
             >
               <Icon
                 size={26}
@@ -110,7 +110,7 @@ function Sidebar({ searchOpen, onSearchToggle }: SidebarProps) {
             key={item.id}
             to={item.href!}
             aria-current={active ? "page" : undefined}
-            className={`group relative inline-flex items-center justify-center max-md:!p-[10px] cursor-pointer active:scale-[0.96] transition-transform duration-100`}
+            className={`group relative inline-flex items-center justify-center narrow:!p-[10px] cursor-pointer active:scale-[0.96] transition-transform duration-100`}
           >
             <Icon
               size={26}
@@ -138,7 +138,7 @@ function Sidebar({ searchOpen, onSearchToggle }: SidebarProps) {
           type="button"
           aria-pressed={settingsOpen}
           onClick={toggleSettings}
-          className={`group relative inline-flex items-center justify-center max-md:!p-[10px] bg-transparent border-0 p-0 cursor-pointer active:scale-[0.96] transition-transform duration-100`}
+          className={`group relative inline-flex items-center justify-center narrow:!p-[10px] bg-transparent border-0 p-0 cursor-pointer active:scale-[0.96] transition-transform duration-100`}
         >
           <Icon
             size={26}
@@ -166,14 +166,15 @@ function Sidebar({ searchOpen, onSearchToggle }: SidebarProps) {
 
   return (
     <aside className="h-full">
-      {/* below md this renders as a bottom tab bar: nav + settings flatten into one evenly spaced row */}
+      {/* narrow screens: a bottom tab bar (nav + settings flatten into one evenly spaced row).
+          short landscape phones keep the side rail but drop the logo and tighten spacing */}
       <div
-        className={`h-full w-full md:w-[58px] rounded-sm rounded-b-xl md:rounded-l-xl md:rounded-r-sm ${
+        className={`h-full w-full wide:w-[58px] rounded-sm rounded-b-xl wide:rounded-l-xl wide:rounded-r-sm ${
           hasCustomBg ? "" : "bg-bg-primary"
-        } flex flex-row items-center justify-around md:flex-col md:items-stretch md:justify-start overflow-hidden`}
+        } flex flex-row items-center justify-around wide:flex-col wide:items-stretch wide:justify-start overflow-hidden`}
         style={sidebarStyle}
       >
-        <div className="hidden md:flex justify-center items-center pt-[16px] pb-[16px] shrink-0">
+        <div className="hidden wide:flex short:!hidden justify-center items-center pt-[16px] pb-[16px] shrink-0">
 
           <AppImage
             src={
@@ -197,11 +198,11 @@ function Sidebar({ searchOpen, onSearchToggle }: SidebarProps) {
           />
         </div>
 
-        <nav className="max-md:contents relative flex-1 flex flex-col items-center gap-[24px] pt-[12px]">
+        <nav className="narrow:contents relative flex-1 flex flex-col items-center gap-[24px] short:gap-[14px] pt-[12px] short:pt-[14px]">
           {renderNavItems()}
         </nav>
 
-        <div className="max-md:contents pt-[16px] pb-[16px] shrink-0 flex justify-center items-center">
+        <div className="narrow:contents pt-[16px] pb-[16px] short:py-[10px] shrink-0 flex justify-center items-center">
           {renderSettingsButton()}
         </div>
       </div>

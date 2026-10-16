@@ -13,6 +13,11 @@ export default function NativeBackButton() {
     let remove: (() => void) | undefined;
     let disposed = false;
     void CapacitorApp.addListener("backButton", ({ canGoBack }) => {
+      // an open dialog/sheet handles back like Escape (close, or step back inside it)
+      if (document.querySelector("[data-dialog-container]")) {
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+        return;
+      }
       if (canGoBack) navigate(-1);
       else void CapacitorApp.minimizeApp();
     }).then((handle) => {

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
-import { CloseLine, Search2Line, CloseCircleFill, ExitLine } from "@mingcute/react";
+import { CloseLine, Search2Line, CloseCircleFill, ExitLine, ArrowLeftLine, RightLine } from "@mingcute/react";
 import {
   Play,
   Palette,
@@ -18,6 +18,8 @@ import { UserAvatar } from "@/shared/ui";
 import { useTranslation, getTranslationsForAllLocales } from "@/languages";
 import { useModalStore } from "@/features/library";
 import { useAuthStore } from "@/features/auth";
+import { useIsNarrow } from "@/shared/hooks";
+import { isNativeApp } from "@/shared/platform";
 import {
   PlaybackTab,
   AppearanceTab,
@@ -92,10 +94,37 @@ export default function SettingsModal() {
 
   const [activeTab, setActiveTab] = useState<TabId>("Playback");
   const [searchQuery, setSearchQuery] = useState("");
+  // upright phones: the section list and a section's content are separate screens
+  const isNarrow = useIsNarrow();
+  const [compactView, setCompactView] = useState<"list" | "section">("list");
+  const showList = !isNarrow || compactView === "list";
+  const showSection = !isNarrow || compactView === "section";
+
+  useEffect(() => {
+    if (open) setCompactView("list");
+  }, [open]);
+
+  // escape / android back from a section returns to the list instead of
+  // closing everything (runs in capture, ahead of Dialog's own handler)
+  useEffect(() => {
+    if (!open || !isNarrow || compactView !== "section") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopImmediatePropagation();
+      setCompactView("list");
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [open, isNarrow, compactView]);
 
   const handleClose = () => {
     setSearchQuery("");
     close();
+  };
+
+  const openTab = (id: TabId) => {
+    setActiveTab(id);
+    setCompactView("section");
   };
 
   const tabLabels: Record<TabId, string> = {
@@ -168,9 +197,13 @@ export default function SettingsModal() {
   }, [searchQuery]);
 
   const filteredGroups = useMemo(() => {
-    if (!matchingTabIds) return TAB_GROUPS;
+    // the floating overlay is a desktop window feature
+    const groups = isNativeApp()
+      ? TAB_GROUPS.map((group) => ({ ...group, ids: group.ids.filter((id) => id !== "Overlay") }))
+      : TAB_GROUPS;
+    if (!matchingTabIds) return groups;
 
-    return TAB_GROUPS.map((group) => {
+    return groups.map((group) => {
       const ids = group.ids.filter((id) => matchingTabIds.has(id));
       return { ...group, ids };
     }).filter((group) => group.ids.length > 0);
@@ -204,9 +237,25 @@ export default function SettingsModal() {
       open={open}
       onOpenChange={(next) => (!next ? handleClose() : undefined)}
       maxWidth={880}
-      className="p-0 h-[620px] max-h-[86vh] !flex-row overflow-hidden !bg-bg-elevated !border-0"
+      className="p-0 h-[620px] max-h-[86vh] !flex-row overflow-hidden !bg-bg-elevated !border-0 compact:!max-w-none compact:!mx-0 compact:!h-[100dvh] compact:!max-h-none compact:!rounded-none safe-area-pad"
     >
-      <aside className="w-[248px] shrink-0 flex flex-col min-h-0 bg-transparent">
+      {showList && (
+      <aside className="w-[248px] narrow:w-full shrink-0 flex flex-col min-h-0 bg-transparent">
+        {isNarrow && (
+          <div className="flex items-center justify-between px-[16px] pt-[12px] pb-[4px]">
+            <h3 className="text-text-primary text-[20px] font-[600] m-0 tracking-[-0.01em]" style={font}>
+              {t("settings.title")}
+            </h3>
+            <button
+              type="button"
+              aria-label={t("common.close") || "Close"}
+              onClick={handleClose}
+              className="w-[40px] h-[40px] inline-flex items-center justify-center rounded-lg text-text-tertiary border-0 bg-transparent p-0 cursor-pointer"
+            >
+              <CloseLine size={20} />
+            </button>
+          </div>
+        )}
         <div className="px-[12px] pt-[14px] pb-[8px]">
           <div className="relative flex items-center">
             <Search2Line
@@ -218,7 +267,7 @@ export default function SettingsModal() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t("settings.search_placeholder")}
-              className="w-full h-[32px] pl-[30px] pr-[26px] bg-border-alpha-14 text-text-primary text-[13px] rounded-[8px] border-0 outline-none placeholder:text-text-tertiary focus:bg-border-alpha-20 transition-colors"
+              className="w-full h-[32px] compact:h-[40px] pl-[30px] pr-[26px] bg-border-alpha-14 text-text-primary text-[13px] compact:text-[15px] rounded-[8px] border-0 outline-none placeholder:text-text-tertiary focus:bg-border-alpha-20 transition-colors"
               style={font}
             />
             {searchQuery && (
@@ -252,7 +301,8 @@ export default function SettingsModal() {
                 {t(`settings.groups.${group.labelKey}`)}
               </p>
               {group.ids.map((id) => {
-                const isActive = id === activeTab;
+                // the phone list is a menu, not a tab strip: no selected state
+                const isActive = !isNarrow && id === activeTab;
                 const Icon = TAB_ICONS[id];
                 return (
                   <button
@@ -260,8 +310,8 @@ export default function SettingsModal() {
                     type="button"
                     role="tab"
                     aria-selected={isActive}
-                    onClick={() => setActiveTab(id)}
-                    className={`w-full flex items-center gap-[10px] px-[10px] py-[8px] rounded-[8px] border-0 cursor-pointer text-left transition-colors ${
+                    onClick={() => openTab(id)}
+                    className={`w-full flex items-center gap-[10px] px-[10px] py-[8px] compact:py-[13px] compact:!text-[15px] rounded-[8px] border-0 cursor-pointer text-left transition-colors ${
                       isActive
                         ? "bg-border-alpha-14 text-text-primary"
                         : "bg-transparent text-text-secondary hover:bg-border-alpha-14 hover:text-text-primary"
@@ -273,7 +323,8 @@ export default function SettingsModal() {
                       weight="Bold"
                       className={isActive ? "text-text-primary shrink-0" : "text-text-tertiary shrink-0"}
                     />
-                    <span className="truncate leading-none">{tabLabels[id]}</span>
+                    <span className="truncate leading-none narrow:flex-1">{tabLabels[id]}</span>
+                    {isNarrow && <RightLine size={16} className="text-text-tertiary shrink-0" />}
                   </button>
                 );
               })}
@@ -290,7 +341,7 @@ export default function SettingsModal() {
             <button
               type="button"
               onClick={() => openExternal("https://github.com/tryliner/desktop/blob/main/README.md")}
-              className="w-full flex items-center gap-[10px] px-[10px] py-[8px] rounded-[8px] border-0 bg-transparent text-text-secondary hover:bg-border-alpha-14 hover:text-text-primary cursor-pointer text-left transition-colors"
+              className="w-full flex items-center gap-[10px] px-[10px] py-[8px] compact:py-[13px] compact:!text-[15px] rounded-[8px] border-0 bg-transparent text-text-secondary hover:bg-border-alpha-14 hover:text-text-primary cursor-pointer text-left transition-colors"
               style={{ ...font, fontSize: "13.5px" }}
             >
               <Book2 size={18} weight="Bold" className="text-text-tertiary shrink-0" />
@@ -299,7 +350,7 @@ export default function SettingsModal() {
             <button
               type="button"
               onClick={() => openExternal("https://t.me/liner_app?direct")}
-              className="w-full flex items-center gap-[10px] px-[10px] py-[8px] rounded-[8px] border-0 bg-transparent text-text-secondary hover:bg-border-alpha-14 hover:text-text-primary cursor-pointer text-left transition-colors"
+              className="w-full flex items-center gap-[10px] px-[10px] py-[8px] compact:py-[13px] compact:!text-[15px] rounded-[8px] border-0 bg-transparent text-text-secondary hover:bg-border-alpha-14 hover:text-text-primary cursor-pointer text-left transition-colors"
               style={{ ...font, fontSize: "13.5px" }}
             >
               <QuestionCircle size={18} weight="Bold" className="text-text-tertiary shrink-0" />
@@ -343,14 +394,26 @@ export default function SettingsModal() {
           </div>
         </div>
       </aside>
+      )}
 
       {/* ── Right secondary frame: same roundness, inset with padding, darker ── */}
-      <div className="flex-1 min-w-0 min-h-0 p-[2px] flex">
-        <div className="flex-1 min-w-0 min-h-0 flex flex-col rounded-xl bg-bg-primary overflow-hidden">
-        <div className="flex items-start justify-between gap-[16px] px-[24px] pt-[20px] pb-[10px] shrink-0">
-          <div className="min-w-0">
+      {showSection && (
+      <div className="flex-1 min-w-0 min-h-0 p-[2px] narrow:p-0 flex">
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col rounded-xl narrow:rounded-none bg-bg-primary overflow-hidden">
+        <div className="flex items-start justify-between gap-[16px] narrow:gap-[8px] px-[24px] narrow:px-[8px] pt-[20px] narrow:pt-[8px] pb-[10px] shrink-0">
+          {isNarrow && (
+            <button
+              type="button"
+              aria-label={t("settings.title")}
+              onClick={() => setCompactView("list")}
+              className="w-[40px] h-[40px] shrink-0 inline-flex items-center justify-center rounded-lg text-text-primary border-0 bg-transparent p-0 cursor-pointer"
+            >
+              <ArrowLeftLine size={20} />
+            </button>
+          )}
+          <div className="min-w-0 narrow:flex-1 narrow:pt-[8px]">
             <h3
-              className="text-text-primary text-[15px] m-0 font-[600] tracking-[-0.01em]"
+              className="text-text-primary text-[15px] compact:text-[18px] m-0 font-[600] tracking-[-0.01em]"
               style={font}
             >
               {tabLabels[activeTab]}
@@ -366,13 +429,13 @@ export default function SettingsModal() {
             type="button"
             aria-label={t("common.close") || "Close"}
             onClick={handleClose}
-            className="w-[28px] h-[28px] shrink-0 inline-flex items-center justify-center rounded-md text-text-tertiary hover:text-text-primary hover:bg-border-alpha-14 transition-colors border-0 bg-transparent p-0 cursor-pointer"
+            className="w-[28px] h-[28px] compact:w-[40px] compact:h-[40px] shrink-0 inline-flex items-center justify-center rounded-md text-text-tertiary hover:text-text-primary hover:bg-border-alpha-14 transition-colors border-0 bg-transparent p-0 cursor-pointer"
           >
             <CloseLine size={17} />
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-[24px] pb-[16px] flex flex-col">
+        <div className="flex-1 min-h-0 overflow-y-auto px-[24px] compact:px-[16px] pb-[16px] flex flex-col">
           <motion.div
             key={activeTab}
             initial={{ opacity: 0 }}
@@ -392,6 +455,7 @@ export default function SettingsModal() {
         </div>
         </div>
       </div>
+      )}
     </Dialog>
   );
 }

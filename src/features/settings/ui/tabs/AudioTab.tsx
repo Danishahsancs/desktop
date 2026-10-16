@@ -41,7 +41,7 @@ export function AudioTab({ searchQuery }: { searchQuery?: string }) {
             mounted ? (
               <Select
                 aria-label={t("settings.audio.title")}
-                className="w-[210px]"
+                className="w-[210px] compact:w-[280px] max-w-full"
                 value={quality}
                 onChange={setAudioQuality}
                 options={[

@@ -31,12 +31,13 @@ export function EntitySidebar({
   backLabel = "Back",
 }: EntitySidebarProps) {
   return (
-    <aside className="sticky top-[20px] w-[280px] shrink-0 self-start" data-no-window-drag>
+    // phones: compact header, small cover beside the title, actions full width below
+    <aside className="sticky top-[20px] w-[280px] short:w-full shrink-0 self-start narrow:static narrow:w-full narrow:grid narrow:grid-cols-[112px_minmax(0,1fr)] narrow:gap-x-[14px] narrow:items-start" data-no-window-drag>
       {onBack && (
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex h-[32px] cursor-pointer items-center gap-[6px] rounded-md border-0 bg-transparent px-[8px] ml-[-8px] text-[13px] font-[500] text-text-tertiary transition-colors hover:bg-border-alpha-14 hover:text-text-primary"
+          className="narrow:col-span-2 narrow:justify-self-start inline-flex h-[32px] cursor-pointer items-center gap-[6px] rounded-md border-0 bg-transparent px-[8px] ml-[-8px] text-[13px] font-[500] text-text-tertiary transition-colors hover:bg-border-alpha-14 hover:text-text-primary"
           style={{ fontFamily: "var(--font-inter), sans-serif" }}
         >
           <ArrowLeftLine size={16} />
@@ -45,7 +46,7 @@ export function EntitySidebar({
       )}
 
       <div
-        className={`relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-md ${
+        className={`relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-md narrow:row-span-3 narrow:!mt-0 ${
           coverClassName || "bg-border-alpha-14"
         } ${onBack ? "mt-[16px]" : ""}`}
       >
@@ -53,7 +54,7 @@ export function EntitySidebar({
       </div>
 
       <div
-        className="mt-[16px] min-w-0"
+        className="mt-[16px] narrow:mt-0 narrow:self-end min-w-0"
         style={{ fontFamily: "var(--font-inter), sans-serif", fontWeight: 600 }}
       >
         {title}
@@ -61,7 +62,7 @@ export function EntitySidebar({
 
       {subtitle && (
         <div
-          className="mt-[6px]"
+          className="mt-[6px] narrow:mt-[4px]"
           style={{ fontFamily: "var(--font-inter), sans-serif" }}
         >
           {subtitle}
@@ -70,17 +71,17 @@ export function EntitySidebar({
 
       {meta && (
         <div
-          className="m-0 mt-[8px] text-[12px] leading-[1.4] text-text-tertiary"
+          className="m-0 mt-[8px] narrow:mt-[6px] narrow:self-start text-[12px] leading-[1.4] text-text-tertiary"
           style={{ fontFamily: "var(--font-inter), sans-serif", fontWeight: 400 }}
         >
           {meta}
         </div>
       )}
 
-      {primaryAction && <div className="mt-[16px]">{primaryAction}</div>}
+      {primaryAction && <div className="mt-[16px] narrow:mt-[14px] narrow:col-span-2">{primaryAction}</div>}
 
       {actions && (
-        <div className="mt-[8px] flex items-center gap-[8px]">{actions}</div>
+        <div className="mt-[8px] flex items-center gap-[8px] narrow:col-span-2">{actions}</div>
       )}
     </aside>
   );
