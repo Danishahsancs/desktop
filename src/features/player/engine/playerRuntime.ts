@@ -66,9 +66,11 @@ async function resolveDirectInnertubeStream(plan: {
     throw new Error('No direct audio formats returned by Innertube');
   }
 
-  // Prefer Opus (audio/webm, itag 251) or highest bitrate audio/mp4
-  const opus = audioFormats.find((f: any) => f.mimeType.includes('webm') || f.mimeType.includes('opus'));
-  const best = opus || audioFormats.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+  // Prefer the highest-bitrate Opus (audio/webm, itag 251 over 249/250), else
+  // the highest-bitrate audio/mp4
+  const byBitrate = [...audioFormats].sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
+  const opus = byBitrate.find((f: any) => f.mimeType.includes('webm') || f.mimeType.includes('opus'));
+  const best = opus || byBitrate[0];
 
   const codec = best.mimeType.includes('opus') ? 'opus' : 'aac';
   const mimeType = best.mimeType.split(';')[0] || 'audio/webm';
