@@ -13,7 +13,28 @@ export function KawarpWrapper({ src, onLoad, onError }: KawarpWrapperProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<KawarpEngine | null>(null);
   const [loaded, setLoaded] = useState(false);
+  // bumped when a lost webgl context is restored, to rebuild the engine
+  const [generation, setGeneration] = useState(0);
   const coverElement = useCoverElement(src);
+
+  // mobile gpus drop webgl contexts when the app is backgrounded or memory is
+  // tight. hide the canvas (the css blur behind it takes over) and rebuild on
+  // restore instead of leaving a frozen/black frame.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const onLost = (e: Event) => {
+      e.preventDefault();
+      setLoaded(false);
+    };
+    const onRestored = () => setGeneration((g) => g + 1);
+    canvas.addEventListener("webglcontextlost", onLost);
+    canvas.addEventListener("webglcontextrestored", onRestored);
+    return () => {
+      canvas.removeEventListener("webglcontextlost", onLost);
+      canvas.removeEventListener("webglcontextrestored", onRestored);
+    };
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -41,7 +62,7 @@ export function KawarpWrapper({ src, onLoad, onError }: KawarpWrapperProps) {
       engine?.dispose();
       engineRef.current = null;
     };
-  }, [onError]);
+  }, [onError, generation]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -95,7 +116,7 @@ export function KawarpWrapper({ src, onLoad, onError }: KawarpWrapperProps) {
     return () => {
       isCancelled = true;
     };
-  }, [src, coverElement, onLoad, onError]);
+  }, [src, coverElement, onLoad, onError, generation]);
 
   return (
     <div

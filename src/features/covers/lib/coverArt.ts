@@ -15,6 +15,7 @@
 
 import { useCallback, useSyncExternalStore } from "react";
 import { prepareCoverFallback } from "./coverSigner";
+import { nativeMediaUrl } from "@/shared/platform";
 
 type CoverStatus = "loading" | "loaded" | "error";
 
@@ -167,7 +168,7 @@ export function preloadCoverArt(url: string | undefined): Promise<void> {
       if (!triedFallback) {
         triedFallback = true;
         void prepareCoverFallback(url).then((fallback) => {
-          if (fallback) img.src = fallback;
+          if (fallback) img.src = nativeMediaUrl(fallback);
           else settle("error");
         });
         return;
@@ -177,7 +178,7 @@ export function preloadCoverArt(url: string | undefined): Promise<void> {
   });
 
   entries.set(url, { status: "loading", promise });
-  img.src = url;
+  img.src = nativeMediaUrl(url);
   return promise;
 }
 

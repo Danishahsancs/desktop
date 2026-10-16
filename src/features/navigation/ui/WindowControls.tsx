@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { LuMinus, LuSquare, LuX } from "react-icons/lu";
 import { useIsContentTransparent } from "@/features/settings/store/customizationStore";
+import { isNativeApp } from "@/shared/platform";
 
 export interface WindowControlsProps {
   className?: string;
@@ -60,6 +61,9 @@ export default function WindowControls({
   const isMinimizeDisabled = isWindowFullScreen || isHyprland;
   const hasCustomBg = useIsContentTransparent();
   const isGlass = hasCustomBg || variant === "glass";
+
+  // phones have no window chrome to drive
+  if (isNativeApp()) return null;
 
   return (
     <div

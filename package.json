@@ -21,7 +21,10 @@
     "electron:build": "tsc -b && vite build && electron-builder",
     "electron:build:linux": "tsc -b && vite build && electron-builder --linux",
     "electron:build:win": "tsc -b && vite build && electron-builder --win",
-    "electron:build:mac": "tsc -b && vite build && electron-builder --mac"
+    "electron:build:mac": "tsc -b && vite build && electron-builder --mac",
+    "mobile:build": "tsc -b && vite build --mode capacitor",
+    "android:sync": "pnpm mobile:build && cap sync android",
+    "android:debug": "pnpm android:sync && cd android && ./gradlew assembleDebug"
   },
   "build": {
     "appId": "com.hkamori.liner",
@@ -104,6 +107,10 @@
   "dependencies": {
     "@braccato/core": "^1.4.0",
     "@braccato/parsers": "^0.2.1",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/filesystem": "^8.1.4",
+    "@capacitor/share": "^8.0.3",
     "@mingcute/react": "^1.4.1",
     "@solar-icons/react": "^1.1.1",
     "@tanstack/react-virtual": "^3.13.23",
@@ -123,6 +130,8 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/cli": "^8.5.3",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^20",
     "@types/react": "^19",

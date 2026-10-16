@@ -5,13 +5,16 @@ import electron from "vite-plugin-electron/simple";
 import path from "path";
 import pkg from "./package.json" with { type: "json" };
 
-export default defineConfig({
+// `vite build --mode capacitor` builds the renderer alone for the android
+// shell: no electron main/preload bundles.
+export default defineConfig(({ mode }) => ({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
   plugins: [
     react(),
     tailwindcss(),
+    mode !== "capacitor" &&
     electron({
       main: {
         entry: "electron/main.ts",
@@ -48,4 +51,4 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
   },
-});
+}));

@@ -36,6 +36,7 @@ import { useTheme } from "next-themes";
 import { useCoverReady, CoverImage } from "@/features/covers";
 import { useCustomizationStore, getBlockStyle } from "@/features/settings";
 import ExplicitBadge from "@/shared/ui/ExplicitBadge";
+import { nativeMediaUrl } from "@/shared/platform";
 import { ArtistLink } from "@/features/artist";
 
 
@@ -244,7 +245,7 @@ function MiniPlayer({
         setContextAccentColorSolid(isLight ? "rgb(23, 23, 23)" : "rgb(255, 255, 255)");
       }
     };
-    img.src = player.playbackContextCover;
+    img.src = nativeMediaUrl(player.playbackContextCover);
   }, [player.playbackContextCover, isLight]);
 
   useEffect(() => {
@@ -271,7 +272,7 @@ function MiniPlayer({
         setAccentColorSolid(isLight ? "rgb(23, 23, 23)" : "rgb(255, 255, 255)");
       }
     };
-    img.src = coverUrl;
+    img.src = nativeMediaUrl(coverUrl);
   }, [coverUrl, isLight]);
 
   const extractAccentColor = useCallback((img: HTMLImageElement) => {

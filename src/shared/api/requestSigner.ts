@@ -1,3 +1,5 @@
+import { isNativeApp } from "@/shared/platform";
+
 // signs outgoing api requests with canonical headers: x-liner-signature, timestamp, nonce
 export interface SignedHeaders {
   "x-liner-signature"?: string;
@@ -45,6 +47,10 @@ export async function signApiRequest(
   body?: string | null,
   customTimestamp?: number,
 ): Promise<SignedHeaders> {
+  if (!isElectron() && isNativeApp()) {
+    return signInWebView(method, path, body, customTimestamp);
+  }
+
   if (!isElectron()) {
     if (import.meta.env.DEV) {
       console.warn(
@@ -79,4 +85,31 @@ export async function signApiRequest(
   }
 
   return {};
+}
+
+// capacitor has no main process; run the same wasm signer in the webview
+async function signInWebView(
+  method: string,
+  path: string,
+  body?: string | null,
+  customTimestamp?: number,
+): Promise<SignedHeaders> {
+  try {
+    const signer = await import("@/shared/platform/wasmSigner");
+    if (!signer.isWasmSignerSupported()) return {};
+    const res = await signer.signRequest({
+      method: method.toUpperCase().trim(),
+      path: path.split("?")[0].trim(),
+      body: body ?? undefined,
+      timestamp: customTimestamp ?? getAdjustedTimestamp(),
+    });
+    return {
+      "x-liner-signature": res.signature,
+      "x-liner-timestamp": String(res.timestamp),
+      "x-liner-nonce": res.nonce,
+    };
+  } catch (err) {
+    console.error("[Signer] WebView wasm signer failed:", err);
+    return {};
+  }
 }

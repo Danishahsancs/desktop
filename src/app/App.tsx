@@ -12,6 +12,7 @@ import { useTouchBarSync } from "@/features/touchbar";
 import { OverlayPlayer, useOverlaySync } from "@/features/overlay";
 import { AppRoutes } from "./routes";
 import DeeplinkHandler from "./DeeplinkHandler";
+import NativeBackButton from "./NativeBackButton";
 import EnvironmentWarning from "./EnvironmentWarning";
 import { ConnectivityWall } from "@/features/connectivity";
 import "./globals.css";
@@ -78,6 +79,7 @@ export default function App() {
             <ToastProvider>
               <RootErrorBoundary>
                 <DeeplinkHandler />
+                <NativeBackButton />
                 <EnvironmentWarning />
                 <ConnectivityWall />
                 <AuthLock>

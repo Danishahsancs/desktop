@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { nativeMediaUrl } from "@/shared/platform";
 
 export interface CircleDitherCanvasProps {
   src: string;
@@ -37,7 +38,7 @@ export default function CircleDitherCanvas({
     setLoaded(false);
     const img = new Image();
     img.crossOrigin = "anonymous";
-    img.src = src;
+    img.src = nativeMediaUrl(src);
     img.onload = () => {
       imgRef.current = img;
       setLoaded(true);

@@ -1,3 +1,4 @@
+import { isNativeApp } from "@/shared/platform";
 import type { MainNetResult } from "../../../../electron/netdiag";
 import type { DiagCheck } from "./diagnostics";
 import type { FailureEntry } from "../store/connectivityStore";
@@ -68,6 +69,28 @@ export async function downloadDump(dump: OfflineDump): Promise<SaveDumpResult> {
       return { success: res.success, filePath: res.filePath, canceled: res.canceled, error: res.error };
     } catch (err) {
       return { success: false, error: String(err) };
+    }
+  }
+
+  // android webview ignores anchor downloads; write to cache and share instead
+  if (isNativeApp()) {
+    try {
+      const [{ Filesystem, Directory, Encoding }, { Share }] = await Promise.all([
+        import("@capacitor/filesystem"),
+        import("@capacitor/share"),
+      ]);
+      const written = await Filesystem.writeFile({
+        path: filename,
+        data: content,
+        directory: Directory.Cache,
+        encoding: Encoding.UTF8,
+      });
+      await Share.share({ title: filename, files: [written.uri] });
+      return { success: true, filePath: written.uri };
+    } catch (err) {
+      const message = String(err);
+      if (/cancel/i.test(message)) return { success: false, canceled: true };
+      return { success: false, error: message };
     }
   }
 

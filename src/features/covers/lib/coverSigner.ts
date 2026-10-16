@@ -2,6 +2,8 @@
 // derives covers.tryliner.fun fallback url directly from track raw cover url
 // hmac token is computed in-memory via rust wasm module
 
+import { isNativeApp } from "@/shared/platform";
+
 const COVER_PROXY_BASE = "https://covers.tryliner.fun";
 const COVER_PROXY_SIZE = 1024;
 
@@ -41,6 +43,17 @@ function sizeAgnosticUrl(rawUrl: string, host: string): string {
 }
 
 export async function signCoverUrl(payload: string): Promise<string> {
+  // Capacitor: no main process, sign with the same wasm module in the webview.
+  if (!isElectron() && isNativeApp()) {
+    try {
+      const signer = await import("@/shared/platform/wasmSigner");
+      if (!signer.isWasmSignerSupported()) return payload;
+      const signature = await signer.signCoverUrl(payload);
+      return signature ? `${payload}.${signature}` : payload;
+    } catch {
+      return payload;
+    }
+  }
   // Web build / a dev browser tab has no native layer; leave the token unsigned.
   if (!isElectron()) return payload;
   try {

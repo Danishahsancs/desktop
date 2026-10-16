@@ -6,6 +6,7 @@ import { telemetry } from "@/shared/telemetry";
 import { linerDb } from "@/shared/storage";
 import type { Track } from "@/shared/types";
 import { pitchShifter } from "./pitchShifter";
+import { nativeMediaUrl } from "@/shared/platform";
 
 interface ResolvedAudioStream {
   url: string;
@@ -727,7 +728,7 @@ export class PlayerRuntime {
         URL.revokeObjectURL(this.activeBlobUrl);
         this.activeBlobUrl = null;
       }
-      this.audio.src = url;
+      this.audio.src = nativeMediaUrl(url);
       this.audio.volume = 0;
       this.audio.load();
       this.applyPlaybackRateAndPitch();

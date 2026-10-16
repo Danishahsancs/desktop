@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { isNativeApp } from "@/shared/platform";
 
 export function CoverSwRegistrar() {
   useEffect(() => {
@@ -6,11 +7,13 @@ export function CoverSwRegistrar() {
       return;
     }
 
-    const isElectron =
+    // native shells skip the sw too: covers already go through the native proxy
+    const skipServiceWorker =
+      isNativeApp() ||
       window.location.protocol === "file:" ||
       typeof (window as any).linerElectron !== "undefined";
 
-    if (isElectron) {
+    if (skipServiceWorker) {
       navigator.serviceWorker.getRegistrations().then((registrations) => {
         for (const reg of registrations) {
           void reg.unregister();
