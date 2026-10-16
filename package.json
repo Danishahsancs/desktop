@@ -111,6 +111,7 @@
     "@capacitor/core": "^8.5.3",
     "@capacitor/filesystem": "^8.1.4",
     "@capacitor/share": "^8.0.3",
+    "@capgo/capacitor-media-session": "8.0.32",
     "@mingcute/react": "^1.4.1",
     "@solar-icons/react": "^1.1.1",
     "@tanstack/react-virtual": "^3.13.23",

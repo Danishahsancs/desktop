@@ -6,7 +6,7 @@ import { telemetry } from "@/shared/telemetry";
 import { linerDb } from "@/shared/storage";
 import type { Track } from "@/shared/types";
 import { pitchShifter } from "./pitchShifter";
-import { nativeMediaUrl } from "@/shared/platform";
+import { isNativeApp, nativeMediaUrl } from "@/shared/platform";
 
 interface ResolvedAudioStream {
   url: string;
@@ -189,6 +189,12 @@ export class PlayerRuntime {
   }
 
   private setupMediaSession() {
+    if (isNativeApp()) {
+      // android: system notification, lock screen controls, background playback
+      void import("./nativeMediaSession").then((m) => m.initNativeMediaSession());
+      return;
+    }
+
     if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
 
     try {

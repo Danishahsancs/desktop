@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android blocks cleartext http by default. The api's fallback relay
+  (FALLBACK_EDGE_API in src/shared/api/baseUrl.ts) is plain http, so without
+  this exception the app can't fail over when api.tryliner.fun is unreachable.
+  Everything else stays https-only.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">edge.tryliner.fun</domain>
+    </domain-config>
+</network-security-config>

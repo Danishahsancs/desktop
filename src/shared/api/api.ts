@@ -46,6 +46,8 @@ const CLIENT_VERSION =
   (import.meta.env.VITE_CLIENT_VERSION as string | undefined) || "1.0.4-desktop";
 
 const DEFAULT_TIMEOUT_MS = 15000;
+const GATEWAY_RETRY_STATUSES = new Set([502, 503, 504]);
+const GATEWAY_RETRY_DELAY_MS = 700;
 
 async function fetchWithTimeout(
   url: string,
@@ -317,6 +319,30 @@ async function executeRequest<T>(
         });
       }
       throw err;
+    }
+  }
+
+  // a gateway error (502/503/504) is usually a brief origin hiccup; retry an
+  // idempotent read once before surfacing it as a server/connectivity error
+  if (method === "GET" && GATEWAY_RETRY_STATUSES.has(res.status) && !init?.signal?.aborted) {
+    await new Promise((resolve) => setTimeout(resolve, GATEWAY_RETRY_DELAY_MS));
+    try {
+      const retrySigned = await signApiRequest(method, path, rawBody);
+      res = await fetchWithTimeout(
+        getApiBaseUrl() + path,
+        {
+          ...init,
+          headers: {
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+            ...correlationHeaders,
+            ...retrySigned,
+            ...restHeaders,
+          },
+        },
+        timeoutMs,
+      );
+    } catch {
+      // keep the original gateway response and report that below
     }
   }
 
