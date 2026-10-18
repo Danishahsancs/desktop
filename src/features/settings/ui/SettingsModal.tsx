@@ -1,12 +1,11 @@
 import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
-import { CloseLine, Search2Line, CloseCircleFill, ExitLine, ArrowLeftLine, RightLine } from "@mingcute/react";
+import { CloseLine, Search2Line, CloseCircleFill, ExitLine, KeyboardLine, ArrowLeftLine, RightLine } from "@mingcute/react";
 import {
   Play,
   Palette,
   Gallery,
   HeadphonesRound,
-  ShieldCheck,
   InfoCircle,
   Book2,
   QuestionCircle,
@@ -22,6 +21,7 @@ import { useIsNarrow } from "@/shared/hooks";
 import { isNativeApp } from "@/shared/platform";
 import {
   PlaybackTab,
+  ShortcutsTab,
   AppearanceTab,
   CustomizationTab,
   AudioTab,
@@ -30,10 +30,11 @@ import {
   OverlayTab,
 } from "./tabs";
 
-type TabId = "Playback" | "Overlay" | "Appearance" | "Customization" | "Audio" | "Storage" | "About";
+type TabId = "Playback" | "Shortcuts" | "Overlay" | "Appearance" | "Customization" | "Audio" | "Storage" | "About";
 
-const TAB_ICONS: Record<TabId, typeof Play> = {
+const TAB_ICONS: Record<TabId, any> = {
   Playback: Play,
+  Shortcuts: KeyboardLine,
   Overlay: Widget5,
   Appearance: Palette,
   Customization: Gallery,
@@ -43,7 +44,7 @@ const TAB_ICONS: Record<TabId, typeof Play> = {
 };
 
 const TAB_GROUPS: { labelKey: "preferences" | "application"; ids: TabId[] }[] = [
-  { labelKey: "preferences", ids: ["Playback", "Overlay", "Audio", "Appearance", "Customization"] },
+  { labelKey: "preferences", ids: ["Playback", "Shortcuts", "Overlay", "Audio", "Appearance", "Customization"] },
   { labelKey: "application", ids: ["Storage", "About"] },
 ];
 
@@ -54,6 +55,17 @@ const SETTING_ITEMS: { tabId: TabId; titleKey: string; descKey?: string }[] = [
   { tabId: "Playback", titleKey: "settings.track_double_click.title", descKey: "settings.track_double_click.description" },
   { tabId: "Playback", titleKey: "settings.default_playback_context.title", descKey: "settings.default_playback_context.description" },
   { tabId: "Playback", titleKey: "settings.audio.pause_on_device_change.title", descKey: "settings.audio.pause_on_device_change.description" },
+
+  // Shortcuts
+  { tabId: "Shortcuts", titleKey: "settings.shortcuts.global_section", descKey: "settings.shortcuts.global_desc" },
+  { tabId: "Shortcuts", titleKey: "settings.shortcuts.main_app_section", descKey: "settings.shortcuts.main_app_desc" },
+  { tabId: "Shortcuts", titleKey: "settings.shortcuts.miniplayer_section", descKey: "settings.shortcuts.miniplayer_desc" },
+  { tabId: "Shortcuts", titleKey: "settings.shortcuts.toggle_overlay", descKey: "settings.shortcuts.toggle_overlay_desc" },
+  { tabId: "Shortcuts", titleKey: "settings.shortcuts.quick_like_song", descKey: "settings.shortcuts.quick_like_song_desc" },
+  { tabId: "Shortcuts", titleKey: "settings.shortcuts.play_pause", descKey: "settings.shortcuts.play_pause_desc" },
+  { tabId: "Shortcuts", titleKey: "settings.shortcuts.next_track", descKey: "settings.shortcuts.next_track_desc" },
+  { tabId: "Shortcuts", titleKey: "settings.shortcuts.prev_track", descKey: "settings.shortcuts.prev_track_desc" },
+  { tabId: "Shortcuts", titleKey: "settings.shortcuts.like_track", descKey: "settings.shortcuts.like_track_desc" },
 
   // Overlay
   { tabId: "Overlay", titleKey: "settings.overlay.position.title", descKey: "settings.overlay.position.description" },
@@ -129,6 +141,7 @@ export default function SettingsModal() {
 
   const tabLabels: Record<TabId, string> = {
     Playback: t("settings.tabs.playback"),
+    Shortcuts: t("settings.tabs.shortcuts") || "Shortcuts",
     Overlay: t("settings.tabs.overlay") || "Overlay",
     Appearance: t("settings.tabs.appearance"),
     Customization: t("settings.tabs.customization") || "Customization",
@@ -139,6 +152,7 @@ export default function SettingsModal() {
 
   const tabDescriptions: Record<TabId, string> = {
     Playback: t("settings.playback.description"),
+    Shortcuts: t("settings.shortcuts.description") || "System-wide and player keyboard shortcuts.",
     Overlay: t("settings.overlay.description") || "Desktop overlay behavior, position and lyrics display.",
     Appearance: t("settings.theme.description"),
     Customization: t("settings.customization.description") || "Window background wallpaper, transparency and block blur effects.",
@@ -154,6 +168,7 @@ export default function SettingsModal() {
 
     const TAB_LABEL_KEYS: Record<TabId, string> = {
       Playback: "settings.tabs.playback",
+      Shortcuts: "settings.tabs.shortcuts",
       Overlay: "settings.tabs.overlay",
       Appearance: "settings.theme.title",
       Customization: "settings.tabs.customization",
@@ -164,6 +179,7 @@ export default function SettingsModal() {
 
     const TAB_DESC_KEYS: Record<TabId, string> = {
       Playback: "settings.playback.description",
+      Shortcuts: "settings.shortcuts.description",
       Overlay: "settings.overlay.description",
       Appearance: "settings.theme.description",
       Customization: "settings.customization.description",
@@ -438,12 +454,13 @@ export default function SettingsModal() {
         <div className="flex-1 min-h-0 overflow-y-auto px-[24px] compact:px-[16px] pb-[16px] flex flex-col">
           <motion.div
             key={activeTab}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+            initial={{ opacity: 0, y: 7 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.12, ease: "easeOut" }}
             className="flex-1 flex flex-col"
           >
             {activeTab === "Playback" && <PlaybackTab searchQuery={searchQuery} />}
+            {activeTab === "Shortcuts" && <ShortcutsTab searchQuery={searchQuery} />}
             {activeTab === "Overlay" && <OverlayTab searchQuery={searchQuery} />}
             {activeTab === "Appearance" && <AppearanceTab searchQuery={searchQuery} />}
             {activeTab === "Customization" && <CustomizationTab searchQuery={searchQuery} />}

@@ -49,6 +49,8 @@ export default function LoginPage() {
     const code = getAuthErrorCode(nextError);
     if (code === "server_unavailable")
       return t("login.errors.server_unavailable");
+    if (code === "server_error")
+      return t("login.errors.server_error");
     if (code === "invalid_credentials")
       return t("login.errors.invalid_credentials");
     if (code === "email_already_used")
@@ -208,7 +210,7 @@ export default function LoginPage() {
               onChange={setLocale}
               align="bottom-right"
               variant="transparent"
-              className="ml-auto"
+              className="ml-auto min-w-[120px]"
               aria-label={t("login.select_language")}
             />
           </div>

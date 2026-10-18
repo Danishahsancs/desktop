@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import electron from "vite-plugin-electron/simple";
@@ -7,7 +7,13 @@ import pkg from "./package.json" with { type: "json" };
 
 // `vite build --mode capacitor` builds the renderer alone for the android
 // shell: no electron main/preload bundles.
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ command, mode }) => {
+  if (command === "serve") {
+    const devSigningSecret = loadEnv(mode, process.cwd(), "LINER_").LINER_DEV_SIGNING_SECRET;
+    if (devSigningSecret) process.env.LINER_DEV_SIGNING_SECRET = devSigningSecret;
+  }
+
+  return {
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
@@ -51,4 +57,5 @@ export default defineConfig(({ mode }) => ({
     outDir: "dist",
     emptyOutDir: true,
   },
-}));
+  };
+});

@@ -1,5 +1,6 @@
 import { nativeMediaUrl } from "@/shared/platform";
 import { prepareCoverFallback } from "@/features/covers";
+import { isWindowVisible, onWindowVisibilityChange } from "@/shared/utils/windowVisibility";
 
 const BLUR_SIZE = 160;
 
@@ -196,6 +197,11 @@ export class KawarpEngine {
   private warpFBO: FboInfo;
 
   private animationId: number | null = null;
+  private readonly stopWatchingVisibility = onWindowVisibilityChange((visible) => {
+    if (!visible || !this.isPlaying || this.animationId !== null) return;
+    this.lastFrameTime = performance.now();
+    this.animationId = requestAnimationFrame(this.renderLoop);
+  });
   private lastFrameTime = 0;
   private accumulatedTime = 0;
   private isPlaying = false;
@@ -499,6 +505,10 @@ export class KawarpEngine {
 
   private renderLoop = (timestamp: number) => {
     if (!this.isPlaying) return;
+    if (!isWindowVisible()) {
+      this.animationId = null;
+      return;
+    }
     const dt = (timestamp - this.lastFrameTime) / 1000;
     this.lastFrameTime = timestamp;
     this.accumulatedTime += dt * this.animationSpeed;
@@ -669,6 +679,7 @@ export class KawarpEngine {
 
   public dispose() {
     this.stop();
+    this.stopWatchingVisibility();
     const gl = this.gl;
     gl.deleteProgram(this.blurProgram);
     gl.deleteProgram(this.blendProgram);

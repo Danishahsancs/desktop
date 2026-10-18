@@ -70,6 +70,14 @@ export const useAuthStore = create<AuthState>((set) => ({
             // refresh failed
           }
         }
+        // refreshAuthSession already drops the session when the server rejects the refresh token (401/403).
+        // still here = the refresh failed for a transient reason (network, 5xx), so keep the user signed in.
+        // shortcut: a server answering 400/422 for a dead refresh token keeps a broken session, use logout then
+        const remaining = getAuthSession();
+        if (remaining?.refreshToken) {
+          set({ status: "authenticated", user: remaining.user ?? stored.user });
+          return;
+        }
         setAuthSession(null);
         set({ status: "anonymous", user: null });
       } else {
@@ -133,6 +141,9 @@ export const useAuthStore = create<AuthState>((set) => ({
 
 export function getAuthErrorCode(error: unknown): string {
   if (!(error instanceof ApiError)) return "server_unavailable";
+  if (error.status === 0) return "server_unavailable";
+  // 5xx and cloudflare 52x: the server is down, not the user's input or connection
+  if (error.status >= 500) return "server_error";
   if (error.code === "INVALID_CREDENTIALS") return "invalid_credentials";
   if (error.code === "EMAIL_ALREADY_USED") return "email_already_used";
   if (error.code === "USERNAME_TAKEN") return "username_taken";

@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, shell, screen, dialog, session, nativeImag
 import { autoUpdater } from "electron-updater";
 import path from "node:path";
 import fs from "node:fs";
+import os from "node:os";
 import dns from "node:dns";
 import net from "node:net";
 import tls from "node:tls";
@@ -13,6 +14,7 @@ import {
   signRequest,
   signMonitorRequest,
   signRawPayload,
+  setDevSigningSecret,
   syncServerTime,
   getServerTimeOffset,
   type SignRequestInput,
@@ -27,12 +29,14 @@ import {
   MAIN_NET_HOST_RE,
   MAIN_NET_MAX_HOSTS,
   MAIN_NET_TRACE_MAX_HOPS,
+  maskIp,
   parseTraceOutput,
   type MainNetResult,
 } from "./netdiag.js";
 import { TouchBarManager } from "./touchbar.js";
 import { OverlayManager } from "./overlay.js";
 import { BundleManager } from "./bundle-manager.js";
+import { createBundleErrorStamp } from "./bundle-stamp.js";
 import { createSleepBlocker } from "./sleep-blocker.js";
 
 // root error handling for main process
@@ -126,6 +130,7 @@ function createWindow() {
     mainWindow.webContents.send("window:state-changed", {
       isMaximized: mainWindow.isMaximized(),
       isFullScreen: mainWindow.isFullScreen(),
+      isVisible: mainWindow.isVisible() && !mainWindow.isMinimized(),
     });
   };
 
@@ -133,6 +138,18 @@ function createWindow() {
   mainWindow.on("unmaximize", broadcastWindowState);
   mainWindow.on("enter-full-screen", broadcastWindowState);
   mainWindow.on("leave-full-screen", broadcastWindowState);
+  mainWindow.on("minimize", () => {
+    broadcastWindowState();
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.webContents.send("window:minimized");
+  });
+  mainWindow.on("restore", () => {
+    broadcastWindowState();
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.webContents.send("window:restored");
+  });
+  mainWindow.on("hide", broadcastWindowState);
+  mainWindow.on("show", broadcastWindowState);
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("https:") || url.startsWith("http:")) {
@@ -169,6 +186,25 @@ function createWindow() {
       console.log(`\x1b[44;37m renderer \x1b[0m ${cleanMsg}`);
     }
   });
+
+  const bundleErrorStamp = createBundleErrorStamp(
+    {
+      getVersionInfo: () => {
+        const active = bundleManager?.getActiveState();
+        return {
+          version: active?.bundleVersion || app.getVersion(),
+          isOta: Boolean(active),
+          sha256: active?.sha256 || null,
+        };
+      },
+      peekUpdate: async () => (bundleManager ? bundleManager.peekUpdate() : { kind: "inactive" }),
+    },
+    { emit: (line) => mainWindow?.webContents.send("bundle:stamp", line) },
+  );
+  mainWindow.webContents.on("console-message", (_event, level) => {
+    if (level >= 3) bundleErrorStamp.onRendererError();
+  });
+  mainWindow.on("closed", () => bundleErrorStamp.dispose());
 
   mainWindow.webContents.on("before-input-event", (_event, input) => {
     if (input.type === "keyDown") {
@@ -211,6 +247,9 @@ function createWindow() {
 // Single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
+  console.warn(
+    "\n\x1b[33m[Liner]\x1b[0m Another instance of Liner is already running in the background. Exiting development instance.\nTo run in development mode, please close the running Liner application first.\n"
+  );
   app.quit();
 } else {
   app.on("second-instance", (_event, argv) => {
@@ -232,6 +271,11 @@ if (!gotTheLock) {
   });
 
   app.whenReady().then(() => {
+    if (!app.isPackaged && process.env.LINER_DEV_SIGNING_SECRET) {
+      setDevSigningSecret(process.env.LINER_DEV_SIGNING_SECRET);
+      console.log("\x1b[43;30m signer \x1b[0m dev signing secret active (unpackaged build only)");
+    }
+
     // register liner:// so browsers / xdg-open route share links to us
     // (on linux the packaged .desktop carries the mime handler too)
     if (process.defaultApp && process.argv.length >= 2) {
@@ -307,7 +351,110 @@ if (!gotTheLock) {
       return app.getVersion();
     });
 
-    ipcMain.handle("app:set-icon", async (_event, dataUrl: string) => {
+    let lastIconBytes: Buffer | null = null;
+    // serialize fs work on the icon theme so rapid accent switches cannot
+    // leave an install and a remove interleaved
+    let linuxIconTask: Promise<void> = Promise.resolve();
+
+    // linux dash/taskbar/launcher icons come from the freedesktop icon theme,
+    // not from the window (wayland has no window-icon protocol at all, and
+    // gnome ignores _NET_WM_ICON), so persist the rendered branding icon into
+    // the user-level hicolor theme and refresh caches best-effort.
+    //
+    // sizes mirror every one the .deb ships in /usr/share/icons/hicolor so the
+    // dock keeps exact-match resolution across the whole range (an
+    // exact 48px hit beats a themed lookup into our 512px icon).
+    const HICON_SIZES = [16, 32, 48, 64, 128, 256, 512] as const;
+
+    const linuxDataHome = () =>
+      process.env.XDG_DATA_HOME && path.isAbsolute(process.env.XDG_DATA_HOME)
+        ? process.env.XDG_DATA_HOME
+        : path.join(os.homedir(), ".local", "share");
+
+    const appIconPaths = (iconName: string) =>
+      HICON_SIZES.map((size) => {
+        const dir = path.join(
+          linuxDataHome(),
+          "icons",
+          "hicolor",
+          `${size}x${size}`,
+          "apps",
+        );
+        return { size, dir, file: path.join(dir, `${iconName}.png`) };
+      });
+
+    const refreshLinuxIconCaches = () => {
+      const dataHome = linuxDataHome();
+      const tryOnce = (cmd: string, args: string[]) => {
+        try {
+          // missing binaries (and their output) are ignored quietly
+          execFile(cmd, args, { timeout: 5000 }, () => {});
+        } catch {}
+      };
+      // gtk's icon cache is the only one our injected files affect;
+      // update-desktop-database rebuilds the MIME cache and never touches
+      // icons
+      tryOnce("gtk-update-icon-cache", ["-f", "-t", path.join(dataHome, "icons", "hicolor")]);
+    };
+
+    // electron-builder writes `desktopName` into the packaged package.json
+    // (syncDesktopName) and uses it for /usr/share/applications/<name>.desktop
+    // and the Icon= key; app.getDesktopFileName() doesn't exist in this
+    // Electron, so read the field Electron would.
+    const resolveLinuxDesktopIconName = async (): Promise<string> => {
+      try {
+        const raw = await fs.promises.readFile(
+          path.join(app.getAppPath(), "package.json"),
+          "utf8",
+        );
+        const desktopName = JSON.parse(raw)?.desktopName as unknown;
+        if (typeof desktopName === "string" && desktopName.trim()) {
+          return desktopName.trim();
+        }
+      } catch {}
+      return "liner";
+    };
+
+    const installLinuxAppIcon = async (iconName: string, png: Buffer) => {
+      const source = nativeImage.createFromBuffer(png);
+      if (source.isEmpty()) return;
+      for (const { size, dir, file } of appIconPaths(iconName)) {
+        await fs.promises.mkdir(dir, { recursive: true });
+        // the incoming bitmap IS 512px; keep its exact bytes there and
+        // downscale for every other directory in the theme
+        if (size === 512) {
+          await fs.promises.writeFile(file, png);
+        } else {
+          await fs.promises.writeFile(
+            file,
+            source.resize({ width: size, height: size, quality: "best" }).toPNG(),
+          );
+        }
+      }
+      refreshLinuxIconCaches();
+    };
+
+    const removeLinuxAppIcon = async (iconName: string) => {
+      let removedAny = false;
+      for (const { file } of appIconPaths(iconName)) {
+        try {
+          // only real removals (and the cache refresh) matter; force keeps
+          // an already-missing file silent
+          await fs.promises.access(file);
+          removedAny = true;
+          await fs.promises.rm(file, { force: true });
+        } catch {}
+      }
+      if (removedAny) refreshLinuxIconCaches();
+    };
+
+    ipcMain.handle(
+      "app:set-icon",
+      async (
+        _event,
+        dataUrl: string,
+        options?: { isDefault?: boolean },
+      ) => {
       if (!mainWindow || !dataUrl) return;
       try {
         const icon = nativeImage.createFromDataURL(dataUrl);
@@ -316,11 +463,76 @@ if (!gotTheLock) {
           if (process.platform === "darwin" && app.dock) {
             app.dock.setIcon(icon);
           }
+          // linux: apply to the icon dash/taskbar actually shows. only in the
+          // packaged app so dev runs do not pollute the user's icon theme.
+          if (process.platform === "linux" && app.isPackaged) {
+            const png = /^data:image\/png;base64,(.+)$/.exec(dataUrl)?.[1];
+            if (png) {
+              const bytes = Buffer.from(png, "base64");
+              // chain onto the previous icon task so a fast accent switch
+              // (e.g. spotify then default) cannot interleave install/remove
+              const runIconTask = async () => {
+                try {
+                  if (options?.isDefault) {
+                    // branding back to stock: drop the injected icon and let the
+                    // packaged system icon win again
+                    lastIconBytes = null;
+                    await removeLinuxAppIcon(
+                      await resolveLinuxDesktopIconName(),
+                    );
+                  } else if (
+                    !lastIconBytes ||
+                    !lastIconBytes.equals(bytes)
+                  ) {
+                    lastIconBytes = bytes;
+                    await installLinuxAppIcon(
+                      await resolveLinuxDesktopIconName(),
+                      bytes,
+                    );
+                  }
+                } catch (err) {
+                  console.error("\x1b[41;37m icon \x1b[0m set-icon error:", err);
+                }
+              };
+              linuxIconTask = linuxIconTask.then(runIconTask);
+            }
+          }
         }
       } catch (err) {
         console.error("\x1b[41;37m icon \x1b[0m set-icon error:", err);
       }
-    });
+      },
+    );
+
+    session.defaultSession.webRequest.onBeforeSendHeaders(
+      { urls: ["*://*.youtube.com/*", "*://*.googlevideo.com/*", "*://api.music.apple.com/*", "*://amp-api.music.apple.com/*"] },
+      (details, callback) => {
+        const requestHeaders: Record<string, string> = {};
+        let userAgentOverride: string | undefined;
+        for (const [name, value] of Object.entries(details.requestHeaders)) {
+          const lower = name.toLowerCase();
+          if (lower === "x-liner-user-agent") {
+            userAgentOverride = value;
+          } else if (lower !== "origin" && lower !== "referer") {
+            requestHeaders[name] = value;
+          }
+        }
+        const origin = details.url.includes("music.apple.com/")
+          ? "https://music.apple.com"
+          : details.url.includes("://www.youtube.com/")
+            ? "https://www.youtube.com"
+            : "https://music.youtube.com";
+        requestHeaders["Origin"] = origin;
+        requestHeaders["Referer"] = `${origin}/`;
+        if (userAgentOverride) {
+          for (const name of Object.keys(requestHeaders)) {
+            if (name.toLowerCase() === "user-agent") delete requestHeaders[name];
+          }
+          requestHeaders["User-Agent"] = userAgentOverride;
+        }
+        callback({ requestHeaders });
+      },
+    );
 
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
       const responseHeaders = { ...(details.responseHeaders || {}) };
@@ -548,26 +760,10 @@ if (!gotTheLock) {
       }
     });
 
-    // native os window move + system cursor fallback to stop wayland jitter feedback loop
+    // manual window move for windows/macos, anchored on the system cursor.
+    // linux uses css app-region instead (see useWindowDrag): wayland ignores setPosition
     let dragStartCursor: { x: number; y: number } | null = null;
     let dragStartWinPos: { x: number; y: number } | null = null;
-
-    ipcMain.on("window:start-drag", () => {
-      if (!mainWindow || mainWindow.isFullScreen()) return;
-      try {
-        if (typeof (mainWindow as any).startWindowMove === "function") {
-          (mainWindow as any).startWindowMove();
-        }
-      } catch {
-        // fallback to manual cursor drag if startWindowMove is unsupported
-      }
-      if (mainWindow.isMaximized()) {
-        mainWindow.unmaximize();
-      }
-      const [wx, wy] = mainWindow.getPosition();
-      dragStartCursor = screen.getCursorScreenPoint();
-      dragStartWinPos = { x: wx, y: wy };
-    });
 
     ipcMain.on("window:drag-start", () => {
       if (!mainWindow || mainWindow.isFullScreen()) return;
@@ -840,10 +1036,10 @@ if (!gotTheLock) {
       const controls = await Promise.all([
         fetchControl("google", "https://www.google.com/generate_204"),
         fetchControl("cloudflare", "https://cloudflare.com/cdn-cgi/trace", (body) => {
-          // egress fingerprint for support: exit ip + colo, nothing else
+          // egress fingerprint for support: masked exit ip + colo, nothing else
           const ip = /^ip=(.+)$/m.exec(body)?.[1]?.trim();
           const loc = /^loc=(.+)$/m.exec(body)?.[1]?.trim();
-          return ip ? `ip ${ip}${loc ? ` · ${loc}` : ""}` : loc ? loc : undefined;
+          return ip ? `ip ${maskIp(ip)}${loc ? ` · ${loc}` : ""}` : loc ? loc : undefined;
         }),
       ]);
 

@@ -20,12 +20,12 @@ describe("gateway error retry", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse(503, { message: "unavailable" }))
-      .mockResolvedValueOnce(jsonResponse(200, { id: "abc", title: "Song" }));
+      .mockResolvedValueOnce(jsonResponse(200, { items: [] }));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const pending = api.getTrack("abc");
+    const pending = api.getUserPlaylists("someone");
 
-    await expect(pending).resolves.toMatchObject({ id: "abc" });
+    await expect(pending).resolves.toEqual({ items: [] });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
