@@ -226,7 +226,10 @@ export class PlayerRuntime {
 
       if (!this.currentTrackId || audioEl.paused) return;
       const currentStatus = usePlayerStore.getState().status;
-      if (currentStatus !== "paused") {
+      // "paused" + a running fade means our own pause is fading out: leave it.
+      // otherwise the audio really is playing (e.g. android's webview resumed a
+      // track it had paused while the app was hidden), so the ui must say so.
+      if (currentStatus !== "paused" || this.fadeTimer === null) {
         usePlayerStore.getState().setStatus("playing");
       }
     });
