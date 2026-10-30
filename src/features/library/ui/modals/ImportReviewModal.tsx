@@ -10,7 +10,6 @@ import {
   TimeLine,
 } from "@mingcute/react";
 import Dialog from "@/shared/ui/Dialog";
-import Button from "@/shared/ui/Button";
 import CoverImage from "@/features/covers/ui/CoverImage";
 import { useTranslation } from "@/languages";
 import { useModalStore } from "../../store/modalStore";
@@ -24,7 +23,7 @@ import {
   type ImportReviewDecision,
 } from "@/shared/api";
 import { playerEngine, usePlayerState } from "@/features/player";
-import { useToast } from "@/shared/ui";
+import { useToast, DialogActions, DialogButton } from "@/shared/ui";
 import { notifyLibraryChanged } from "../../hooks/usePlaylists";
 
 function formatDuration(ms?: number): string {
@@ -34,7 +33,6 @@ function formatDuration(ms?: number): string {
   const seconds = totalSeconds % 60;
   return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
 }
-
 
 function deduplicateReviewItems(reviewItems: ImportReview[]): ImportReview[] {
   const seen = new Set<string>();
@@ -109,7 +107,9 @@ export default function ImportReviewModal() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [items, setItems] = useState<ImportReview[]>([]);
-  const [decisions, setDecisions] = useState<Record<string, "approve" | "deny">>({});
+  const [decisions, setDecisions] = useState<
+    Record<string, "approve" | "deny">
+  >({});
 
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -188,20 +188,32 @@ export default function ImportReviewModal() {
 
       const autoMatchedTracks =
         useModalStore.getState().importReviewApprovedTracks ||
-        (useImportStore.getState().job?.id === jobId ? useImportStore.getState().approvedTracks : null) ||
+        (useImportStore.getState().job?.id === jobId
+          ? useImportStore.getState().approvedTracks
+          : null) ||
         [];
       const jobMeta = useImportStore.getState().job;
-      if (autoMatchedTracks.length > 0 && jobMeta?.status === "awaiting_decision") {
-        const r = await api.skipPlaylistImportReview(
-          jobId,
-          autoMatchedTracks,
-          jobMeta?.title,
-          jobMeta?.description,
-        ).catch(() => null);
+      if (
+        autoMatchedTracks.length > 0 &&
+        jobMeta?.status === "awaiting_decision"
+      ) {
+        const r = await api
+          .skipPlaylistImportReview(
+            jobId,
+            autoMatchedTracks,
+            jobMeta?.title,
+            jobMeta?.description,
+          )
+          .catch(() => null);
         if (!active) return;
         if (r?.finalized) {
           const finalJob = await api.getPlaylistImport(jobId).catch(() => null);
-          useImportStore.setState({ job: finalJob ?? null, isPolling: false, reviewItems: null, approvedTracks: null });
+          useImportStore.setState({
+            job: finalJob ?? null,
+            isPolling: false,
+            reviewItems: null,
+            approvedTracks: null,
+          });
           notifyLibraryChanged();
           close();
         }
@@ -233,12 +245,18 @@ export default function ImportReviewModal() {
       }));
 
       const userApprovedTracks = items
-        .filter((item) => (decisions[item.id] || "deny") === "approve" && Boolean(item.proposedTrack))
+        .filter(
+          (item) =>
+            (decisions[item.id] || "deny") === "approve" &&
+            Boolean(item.proposedTrack),
+        )
         .map((item) => item.proposedTrack!);
 
       const autoMatchedTracks =
         useModalStore.getState().importReviewApprovedTracks ||
-        (useImportStore.getState().job?.id === jobId ? useImportStore.getState().approvedTracks : null) ||
+        (useImportStore.getState().job?.id === jobId
+          ? useImportStore.getState().approvedTracks
+          : null) ||
         [];
       const allApprovedTracks = [...autoMatchedTracks, ...userApprovedTracks];
 
@@ -252,7 +270,12 @@ export default function ImportReviewModal() {
       );
 
       const finalJob = await api.getPlaylistImport(jobId).catch(() => null);
-      useImportStore.setState({ job: finalJob ?? null, isPolling: false, reviewItems: null, approvedTracks: null });
+      useImportStore.setState({
+        job: finalJob ?? null,
+        isPolling: false,
+        reviewItems: null,
+        approvedTracks: null,
+      });
       if (res.finalized) notifyLibraryChanged();
       close();
     } catch (err) {
@@ -270,7 +293,9 @@ export default function ImportReviewModal() {
     try {
       const autoMatchedTracks =
         useModalStore.getState().importReviewApprovedTracks ||
-        (useImportStore.getState().job?.id === jobId ? useImportStore.getState().approvedTracks : null) ||
+        (useImportStore.getState().job?.id === jobId
+          ? useImportStore.getState().approvedTracks
+          : null) ||
         [];
       const jobMeta = useImportStore.getState().job;
       const res = await api.skipPlaylistImportReview(
@@ -281,7 +306,12 @@ export default function ImportReviewModal() {
       );
 
       const finalJob = await api.getPlaylistImport(jobId).catch(() => null);
-      useImportStore.setState({ job: finalJob ?? null, isPolling: false, reviewItems: null, approvedTracks: null });
+      useImportStore.setState({
+        job: finalJob ?? null,
+        isPolling: false,
+        reviewItems: null,
+        approvedTracks: null,
+      });
       if (res.finalized) notifyLibraryChanged();
       close();
     } catch (err) {
@@ -312,7 +342,9 @@ export default function ImportReviewModal() {
     setDecisions(next);
   };
 
-  const approvedCount = Object.values(decisions).filter((d) => d === "approve").length;
+  const approvedCount = Object.values(decisions).filter(
+    (d) => d === "approve",
+  ).length;
 
   return (
     <Dialog
@@ -324,10 +356,7 @@ export default function ImportReviewModal() {
         {/* Header */}
         <div className="flex items-start justify-between gap-[12px]">
           <div className="flex flex-col gap-[4px] min-w-0 flex-1">
-            <h2
-              className="m-0 text-[18px] font-[500] text-text-primary flex items-center gap-[8px]"
-              style={{ fontFamily: "var(--font-inter), sans-serif" }}
-            >
+            <h2 className="m-0 text-[18px] font-[500] text-text-primary flex items-center gap-[8px]">
               {t("import.review_title")}
               {items.length > 0 && (
                 <span className="text-[12px] px-[8px] py-[2px] rounded-full bg-border-alpha-14 text-text-secondary font-normal">
@@ -335,10 +364,7 @@ export default function ImportReviewModal() {
                 </span>
               )}
             </h2>
-            <p
-              className="m-0 text-[13px] text-text-tertiary"
-              style={{ fontFamily: "var(--font-inter), sans-serif" }}
-            >
+            <p className="m-0 text-[13px] text-text-tertiary">
               {t("import.review_description")}
             </p>
           </div>
@@ -417,191 +443,196 @@ export default function ImportReviewModal() {
                         : "bg-bg-elevated/50 border-border-primary/40 opacity-75 hover:opacity-100"
                     }`}
                   >
-                  {/* Original track row */}
-                  <div className="flex items-start justify-between gap-[10px]">
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <span className="text-[13px] font-[500] text-text-primary truncate">
-                        {item.sourceTrack.title}
-                      </span>
-                      <span className="text-[12px] text-text-tertiary truncate">
-                        {item.sourceTrack.artists.join(", ")}
-                        {item.sourceTrack.durationMs ? (
-                          <> • {formatDuration(item.sourceTrack.durationMs)}</>
-                        ) : null}
-                      </span>
+                    {/* Original track row */}
+                    <div className="flex items-start justify-between gap-[10px]">
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <span className="text-[13px] font-[500] text-text-primary truncate">
+                          {item.sourceTrack.title}
+                        </span>
+                        <span className="text-[12px] text-text-tertiary truncate">
+                          {item.sourceTrack.artists.join(", ")}
+                          {item.sourceTrack.durationMs ? (
+                            <>
+                              {" "}
+                              • {formatDuration(item.sourceTrack.durationMs)}
+                            </>
+                          ) : null}
+                        </span>
+                      </div>
+
+                      {/* Reason Badge */}
+                      <div className="shrink-0">
+                        <span
+                          className={`inline-flex items-center gap-[4px] text-[11px] px-[8px] py-[3px] rounded-md font-[450] ${
+                            isAutoMatched
+                              ? "bg-white/10 text-text-primary border border-white/10"
+                              : "bg-border-alpha-14 text-text-secondary"
+                          }`}
+                        >
+                          {isAutoMatched ? (
+                            <CheckLine size={12} />
+                          ) : (
+                            <InformationLine size={12} />
+                          )}
+                          {t(`import.reason_${item.reason}`) ||
+                            (isAutoMatched ? "Matched" : item.reason)}
+                        </span>
+                      </div>
                     </div>
 
-                    {/* Reason Badge */}
-                    <div className="shrink-0">
-                      <span
-                        className={`inline-flex items-center gap-[4px] text-[11px] px-[8px] py-[3px] rounded-md font-[450] ${
-                          isAutoMatched
-                            ? "bg-white/10 text-text-primary border border-white/10"
-                            : "bg-border-alpha-14 text-text-secondary"
-                        }`}
-                      >
-                        {isAutoMatched ? (
-                          <CheckLine size={12} />
-                        ) : (
-                          <InformationLine size={12} />
-                        )}
-                        {t(`import.reason_${item.reason}`) || (isAutoMatched ? "Matched" : item.reason)}
-                      </span>
-                    </div>
-                  </div>
+                    {/* Proposed candidate */}
+                    {proposed ? (
+                      (() => {
+                        const isThisCurrent = currentTrack?.id === proposed.id;
+                        const isThisPlaying = isThisCurrent && isPlaying;
 
-                  {/* Proposed candidate */}
-                  {proposed ? (
-                    (() => {
-                      const isThisCurrent = currentTrack?.id === proposed.id;
-                      const isThisPlaying = isThisCurrent && isPlaying;
-
-                      return (
-                        <div className="flex items-center justify-between gap-[12px] p-[8px] rounded-md bg-bg-primary/80 border border-border-primary/60">
-                          <div className="flex items-center gap-[10px] min-w-0 flex-1">
-                            <div
-                              className="relative h-[38px] w-[38px] rounded-md bg-border-alpha-14 overflow-hidden shrink-0 flex items-center justify-center group/cover cursor-pointer select-none"
-                              onClick={() => handleTogglePlay(proposed)}
-                              title={isThisPlaying ? "Pause" : "Play"}
-                            >
-                              {proposed.cover ? (
-                                <CoverImage
-                                  src={mediaUrl(proposed.cover.url)}
-                                  alt={proposed.title}
-                                  fill
-                                  sizes="38px"
-                                  className="object-cover"
-                                />
-                              ) : (
-                                <PlaylistFill size={18} className="text-text-tertiary" />
-                              )}
-
-                              {/* Quick Play/Pause overlay */}
+                        return (
+                          <div className="flex items-center justify-between gap-[12px] p-[8px] rounded-md bg-bg-primary/80 border border-border-primary/60">
+                            <div className="flex items-center gap-[10px] min-w-0 flex-1">
                               <div
-                                className={`absolute inset-0 flex items-center justify-center bg-black/45 text-white transition-opacity duration-150 ${
-                                  isThisCurrent
-                                    ? "opacity-100"
-                                    : "opacity-0 group-hover/cover:opacity-100 hover:bg-black/55"
+                                className="relative h-[38px] w-[38px] rounded-md bg-border-alpha-14 overflow-hidden shrink-0 flex items-center justify-center group/cover cursor-pointer select-none"
+                                onClick={() => handleTogglePlay(proposed)}
+                                title={isThisPlaying ? "Pause" : "Play"}
+                              >
+                                {proposed.cover ? (
+                                  <CoverImage
+                                    src={mediaUrl(proposed.cover.url)}
+                                    alt={proposed.title}
+                                    fill
+                                    sizes="38px"
+                                    className="object-cover"
+                                  />
+                                ) : (
+                                  <PlaylistFill
+                                    size={18}
+                                    className="text-text-tertiary"
+                                  />
+                                )}
+
+                                {/* Quick Play/Pause overlay */}
+                                <div
+                                  className={`absolute inset-0 flex items-center justify-center bg-black/45 text-white transition-opacity duration-150 ${
+                                    isThisCurrent
+                                      ? "opacity-100"
+                                      : "opacity-0 group-hover/cover:opacity-100 hover:bg-black/55"
+                                  }`}
+                                >
+                                  {isThisPlaying ? (
+                                    <PauseFill
+                                      size={18}
+                                      className="text-white"
+                                    />
+                                  ) : (
+                                    <PlayFill
+                                      size={18}
+                                      className="text-white ml-[2px]"
+                                    />
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col min-w-0 flex-1">
+                                <span className="text-[13px] font-[500] truncate text-text-primary">
+                                  {proposed.title}
+                                </span>
+                                <div className="flex items-center gap-[6px] text-[11px] text-text-tertiary truncate">
+                                  <span className="truncate">
+                                    {proposed.artists
+                                      .map((a: any) => a.name)
+                                      .join(", ")}
+                                  </span>
+                                  {proposed.durationMs ? (
+                                    <span className="shrink-0 flex items-center gap-[2px]">
+                                      <TimeLine size={10} />
+                                      {formatDuration(proposed.durationMs)}
+                                    </span>
+                                  ) : null}
+                                  {score !== undefined ? (
+                                    <span
+                                      className={`shrink-0 font-medium ${
+                                        score >= 80
+                                          ? "text-text-primary"
+                                          : "text-text-secondary"
+                                      }`}
+                                    >
+                                      {score}%
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Decision buttons */}
+                            <div className="flex items-center gap-[4px] shrink-0">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  toggleDecision(item.id, "approve")
+                                }
+                                className={`inline-flex items-center justify-center gap-[4px] px-[10px] py-[5px] rounded-md text-[12px] font-[500] transition-all duration-150 cursor-pointer border active:scale-[0.96] ${
+                                  isApproved
+                                    ? "bg-btn-primary-bg text-btn-primary-text border-transparent"
+                                    : "bg-transparent text-text-secondary border-border-primary hover:bg-border-alpha-14 hover:text-text-primary"
                                 }`}
                               >
-                                {isThisPlaying ? (
-                                  <PauseFill size={18} className="text-white" />
-                                ) : (
-                                  <PlayFill size={18} className="text-white ml-[2px]" />
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="flex flex-col min-w-0 flex-1">
-                              <span className="text-[13px] font-[500] truncate text-text-primary">
-                                {proposed.title}
-                              </span>
-                              <div className="flex items-center gap-[6px] text-[11px] text-text-tertiary truncate">
-                                <span className="truncate">
-                                  {proposed.artists.map((a: any) => a.name).join(", ")}
-                                </span>
-                                {proposed.durationMs ? (
-                                  <span className="shrink-0 flex items-center gap-[2px]">
-                                    <TimeLine size={10} />
-                                    {formatDuration(proposed.durationMs)}
-                                  </span>
-                                ) : null}
-                                {score !== undefined ? (
-                                  <span
-                                    className={`shrink-0 font-medium ${
-                                      score >= 80
-                                        ? "text-text-primary"
-                                        : "text-text-secondary"
-                                    }`}
-                                  >
-                                    {score}%
-                                  </span>
-                                ) : null}
-                              </div>
+                                <CheckLine size={14} />
+                                <span>{t("import.approve")}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => toggleDecision(item.id, "deny")}
+                                className={`inline-flex items-center justify-center gap-[4px] px-[10px] py-[5px] rounded-md text-[12px] font-[500] transition-all duration-150 cursor-pointer border active:scale-[0.96] ${
+                                  !isApproved
+                                    ? "bg-border-alpha-14 text-text-primary border-border-primary"
+                                    : "bg-transparent text-text-tertiary border-transparent hover:text-text-secondary"
+                                }`}
+                              >
+                                <CloseLine size={14} />
+                                <span>{t("import.deny")}</span>
+                              </button>
                             </div>
                           </div>
-
-                          {/* Decision buttons */}
-                          <div className="flex items-center gap-[4px] shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => toggleDecision(item.id, "approve")}
-                              className={`inline-flex items-center justify-center gap-[4px] px-[10px] py-[5px] rounded-md text-[12px] font-[500] transition-all duration-150 cursor-pointer border active:scale-[0.96] ${
-                                isApproved
-                                  ? "bg-btn-primary-bg text-btn-primary-text border-transparent"
-                                  : "bg-transparent text-text-secondary border-border-primary hover:bg-border-alpha-14 hover:text-text-primary"
-                              }`}
-                            >
-                              <CheckLine size={14} />
-                              <span>{t("import.approve")}</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => toggleDecision(item.id, "deny")}
-                              className={`inline-flex items-center justify-center gap-[4px] px-[10px] py-[5px] rounded-md text-[12px] font-[500] transition-all duration-150 cursor-pointer border active:scale-[0.96] ${
-                                !isApproved
-                                  ? "bg-border-alpha-14 text-text-primary border-border-primary"
-                                  : "bg-transparent text-text-tertiary border-transparent hover:text-text-secondary"
-                              }`}
-                            >
-                              <CloseLine size={14} />
-                              <span>{t("import.deny")}</span>
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })()
-                  ) : (
-                    <div className="flex items-center justify-between gap-[12px] p-[8px] rounded-md bg-bg-primary/40 border border-border-primary/40 text-text-tertiary text-[12px]">
-                      <span>{t("import.no_candidate_found")}</span>
-                      <span className="text-[11px] px-[8px] py-[3px] rounded bg-border-alpha-14 text-text-tertiary font-medium">
-                        {t("import.skipped")}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                        );
+                      })()
+                    ) : (
+                      <div className="flex items-center justify-between gap-[12px] p-[8px] rounded-md bg-bg-primary/40 border border-border-primary/40 text-text-tertiary text-[12px]">
+                        <span>{t("import.no_candidate_found")}</span>
+                        <span className="text-[11px] px-[8px] py-[3px] rounded bg-border-alpha-14 text-text-tertiary font-medium">
+                          {t("import.skipped")}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         {/* Footer actions */}
-        <div className="flex items-center justify-between pt-[8px] border-t border-border-primary mt-[4px]">
-          <Button
+        <DialogActions className="mt-[4px]">
+          <DialogButton type="button" onClick={close} disabled={submitting}>
+            {t("common.close")}
+          </DialogButton>
+          <DialogButton
             type="button"
-            variant="secondary"
-            size="sm"
             onClick={() => void handleSkipAll()}
             disabled={submitting || loading || items.length === 0}
-            className="!text-text-tertiary hover:!text-text-primary"
           >
             {t("import.skip_all")}
-          </Button>
-
-          <div className="flex items-center gap-[8px]">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={close}
-              disabled={submitting}
-            >
-              {t("common.close")}
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              onClick={() => void handleApply()}
-              disabled={submitting || loading || items.length === 0}
-            >
-              {submitting
-                ? t("import.applying")
-                : `${t("import.apply_decisions")} (${approvedCount})`}
-            </Button>
-          </div>
-        </div>
+          </DialogButton>
+          <DialogButton
+            type="button"
+            variant="primary"
+            onClick={() => void handleApply()}
+            disabled={loading || items.length === 0}
+            loading={submitting}
+          >
+            {submitting
+              ? t("import.applying")
+              : `${t("import.apply_decisions")} (${approvedCount})`}
+          </DialogButton>
+        </DialogActions>
       </div>
     </Dialog>
   );

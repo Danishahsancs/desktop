@@ -4,11 +4,13 @@ import { debouncedStorage } from "@/shared/utils/storage";
 import {
   parseRawLyrics,
   applyLyricsOffset,
-  type WordData,
   type SyncedLine,
 } from "../engine/lyricsParser";
 import type { Lyric } from "@braccato/parsers";
-import type { LyricsCandidate, LyricsSyncLevel } from "@/shared/contracts/lyrics";
+import type {
+  LyricsCandidate,
+  LyricsSyncLevel,
+} from "@/shared/contracts/lyrics";
 
 export interface LyricsProviderOption {
   provider: string;
@@ -27,7 +29,8 @@ export function hasSyncedLyricsSources(
       (p) =>
         (p.syncLevel && p.syncLevel !== "plain") ||
         (p.candidate?.syncLevel && p.candidate.syncLevel !== "plain") ||
-        (p.candidate?.lyrics?.format && p.candidate.lyrics.format !== "plain") ||
+        (p.candidate?.lyrics?.format &&
+          p.candidate.lyrics.format !== "plain") ||
         (p.candidate?.contentKind && p.candidate.contentKind !== "plain") ||
         (p.candidate?.syncHint && p.candidate.syncHint !== "plain"),
     )
@@ -35,8 +38,9 @@ export function hasSyncedLyricsSources(
     return true;
   }
   if (
-    braccatoLyrics.length > 0 &&
-    braccatoLyrics.some((l) => (l.startTimeMs ?? 0) > 0 || (l.durationMs ?? 0) > 0)
+    braccatoLyrics.some(
+      (l) => (l.startTimeMs ?? 0) > 0 || (l.durationMs ?? 0) > 0,
+    )
   ) {
     return true;
   }
@@ -158,7 +162,9 @@ export const useLyricsStore = create<LyricsState>()(
 
       selectProvider: (providerName: string) => {
         const { availableProviders, offsetMs } = get();
-        const option = availableProviders.find((p) => p.provider === providerName);
+        const option = availableProviders.find(
+          (p) => p.provider === providerName,
+        );
         if (!option) return;
 
         try {
@@ -168,7 +174,10 @@ export const useLyricsStore = create<LyricsState>()(
           );
 
           const adjusted = applyLyricsOffset(
-            { braccatoLyrics: parsed.braccatoLyrics, syncedLines: parsed.syncedLines },
+            {
+              braccatoLyrics: parsed.braccatoLyrics,
+              syncedLines: parsed.syncedLines,
+            },
             offsetMs,
           );
 
@@ -211,7 +220,7 @@ export const useLyricsStore = create<LyricsState>()(
           offsetMs,
         );
 
-        const updatedTrackOffsets = { ...(trackOffsets || {}) };
+        const updatedTrackOffsets = { ...trackOffsets };
         if (currentLyricsTrackId) {
           if (offsetMs === 0) {
             delete updatedTrackOffsets[currentLyricsTrackId];
@@ -275,4 +284,3 @@ export const useLyricsStore = create<LyricsState>()(
     },
   ),
 );
-

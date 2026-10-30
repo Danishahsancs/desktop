@@ -50,8 +50,21 @@ export function installNativeRequestHeaderShim(): void {
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
     const baseHeaders = init?.headers ?? (input instanceof Request ? input.headers : undefined);
-    const rewritten = rewriteServiceHeaders(url, new Headers(baseHeaders));
-    if (!rewritten) return nativeFetch(input, init);
-    return nativeFetch(input, { ...init, headers: rewritten });
+    const bodyless = withBrowserEmptyBody(init);
+    const rewritten = rewriteServiceHeaders(url, new Headers(bodyless?.headers ?? baseHeaders));
+    if (!rewritten) return nativeFetch(input, bodyless ?? init);
+    return nativeFetch(input, { ...(bodyless ?? init), headers: rewritten });
   };
+}
+
+// a body-less POST from a browser goes out with no content type, but android's
+// native http labels it application/x-www-form-urlencoded, which the api rejects
+// with 415 (e.g. the liner audio lookup, so every track fell back to youtube).
+// send it the way a browser sends an empty string body instead.
+export function withBrowserEmptyBody(init?: RequestInit): RequestInit | null {
+  const method = (init?.method ?? "GET").toUpperCase();
+  if (method === "GET" || method === "HEAD" || init?.body != null) return null;
+  const headers = new Headers(init?.headers);
+  if (!headers.has("content-type")) headers.set("content-type", "text/plain;charset=UTF-8");
+  return { ...init, body: "", headers };
 }

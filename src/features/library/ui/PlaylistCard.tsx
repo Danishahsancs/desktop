@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useState, type ReactNode } from "react";
 import { PlaylistFill } from "@mingcute/react";
 import DropdownMenu from "@/shared/ui/DropdownMenu";
 import type { DropdownMenuItem } from "@/shared/ui/DropdownMenu";
@@ -13,7 +13,10 @@ export interface PlaylistCardProps {
   coverUrls?: string[];
   variant?: PlaylistVariant;
   href?: string;
+  linkState?: unknown;
+  onPointerDown?: () => void;
   onClick?: () => void;
+  badge?: ReactNode;
   className?: string;
   menuItems?: DropdownMenuItem[];
 }
@@ -69,7 +72,10 @@ function PlaylistCard({
   coverUrls,
   variant = "playlist",
   href,
+  linkState,
+  onPointerDown,
   onClick,
+  badge,
   className = "",
   menuItems,
 }: PlaylistCardProps) {
@@ -80,11 +86,7 @@ function PlaylistCard({
   } | null>(null);
 
   const effectiveUrls =
-    coverUrls && coverUrls.length > 0
-      ? coverUrls
-      : imageUrl
-        ? [imageUrl]
-        : [];
+    coverUrls && coverUrls.length > 0 ? coverUrls : imageUrl ? [imageUrl] : [];
   const hasCollage = effectiveUrls.length >= 2;
 
   const handleContextMenu = useCallback(
@@ -142,8 +144,9 @@ function PlaylistCard({
         <span className="truncate text-[14px] font-[500] text-text-primary">
           {title}
         </span>
-        <span className="truncate text-[13px] text-text-tertiary">
-          {author}
+        <span className="flex min-w-0 items-center gap-[5px] text-[13px] text-text-tertiary">
+          {badge}
+          <span className="truncate">{author}</span>
         </span>
       </div>
     </>
@@ -165,6 +168,8 @@ function PlaylistCard({
       <div onContextMenu={handleContextMenu}>
         <Link
           to={href}
+          state={linkState}
+          onPointerDown={onPointerDown}
           className={`group flex flex-col gap-[8px] no-underline ${className}`}
           draggable={false}
           onDragStart={(e) => e.preventDefault()}

@@ -21,4 +21,10 @@ export {
 } from "./useListReorder";
 
 
-export { useIsCompact, useIsNarrow, COMPACT_MEDIA_QUERY, NARROW_MEDIA_QUERY } from "./useIsCompact";
+export { useIsCompact, useIsNarrow, useIsShort } from "./useIsCompact";
+export {
+  useDominantDarkColor,
+  default as useDominantDarkColorDefault,
+  type DominantDarkColor,
+} from "./useDominantDarkColor";
+export { useScrollFade, type ScrollFade } from "./useScrollFade";

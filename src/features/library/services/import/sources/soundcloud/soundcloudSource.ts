@@ -1,9 +1,14 @@
-import type { ClientImportedPlaylist, ClientImportedTrack } from "../../importTypes";
-import { getSoundCloudClientId } from "@/shared/media/soundcloud";
+import type {
+  ClientImportedPlaylist,
+  ClientImportedTrack,
+} from "../../importTypes";
+import {
+  getSoundCloudClientId,
+  hydrateSoundCloudStubs,
+} from "@/shared/media/soundcloud";
 import { createSoundCloudCollection } from "./soundcloudCollection";
 import { scrapeSoundCloudHydration } from "./soundcloudHydration";
 import { resolveSoundCloudApi } from "./soundcloudResolve";
-import { hydrateSoundCloudStubs } from "./soundcloudStubs";
 import { mapSoundCloudTrack, soundCloudCanonicalId } from "./soundcloudTracks";
 import { isSoundCloudLikesUrl, resolveSoundCloudUrl } from "./soundcloudUrl";
 
@@ -30,7 +35,7 @@ export async function importSoundCloud(
 
   const rawTracks = await hydrateSoundCloudStubs(collection.rawTracks, signal);
   const tracks = rawTracks
-    .map(mapSoundCloudTrack)
+    .map((raw) => mapSoundCloudTrack(raw, collection.artworkUrl))
     .filter((track): track is ClientImportedTrack => Boolean(track));
 
   if (tracks.length === 0) {
@@ -43,7 +48,9 @@ export async function importSoundCloud(
     source: "soundcloud",
     sourceUrl: rawUrl,
     title: collection.title,
-    canonicalTrackIds: tracks.map((track) => soundCloudCanonicalId(track.sourceId)),
+    canonicalTrackIds: tracks.map((track) =>
+      soundCloudCanonicalId(track.sourceId),
+    ),
     ...(collection.description ? { description: collection.description } : {}),
     tracks,
   };

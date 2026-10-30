@@ -3,11 +3,11 @@ import {
   useRef,
   useState,
   useLayoutEffect,
-  useEffect,
   useCallback,
 } from "react";
-import { useNavigate } from "react-router-dom";
+import { useStableNavigate } from "@/shared/hooks/useStableNavigate";
 import type { TrackArtist } from "@/shared/types";
+import { useOfflineModeStore } from "@/features/connectivity/store/offlineModeStore";
 
 export interface ArtistLinkProps {
   name?: string;
@@ -17,6 +17,7 @@ export interface ArtistLinkProps {
   className?: string;
   separator?: string;
   onNavigate?: () => void;
+  plain?: boolean;
 }
 
 export default function ArtistLink({
@@ -27,8 +28,10 @@ export default function ArtistLink({
   className = "",
   separator = ", ",
   onNavigate,
+  plain = false,
 }: ArtistLinkProps) {
-  const navigate = useNavigate();
+  const navigate = useStableNavigate();
+  const offline = useOfflineModeStore((state) => state.offline);
   const outerRef = useRef<HTMLSpanElement>(null);
   const innerRef = useRef<HTMLSpanElement>(null);
   const [delta, setDelta] = useState(0);
@@ -42,16 +45,25 @@ export default function ArtistLink({
 
   useLayoutEffect(() => {
     measure();
-  });
-
-  useEffect(() => {
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
+    const outer = outerRef.current;
+    const inner = innerRef.current;
+    if (!outer || !inner) return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(outer);
+    observer.observe(inner);
+    return () => observer.disconnect();
   }, [measure]);
 
   let innerContent: React.ReactNode = null;
 
-  if (artistList && artistList.length > 0) {
+  if (plain || offline) {
+    const text =
+      name ??
+      artists ??
+      artistList?.map((artist) => artist.name).join(separator);
+    if (!text) return null;
+    innerContent = <span>{text}</span>;
+  } else if (artistList && artistList.length > 0) {
     innerContent = artistList.map((artist, index) => {
       const targetId =
         artist.id && artist.id !== "unknown"
@@ -63,9 +75,7 @@ export default function ArtistLink({
       return (
         <Fragment key={artist.id || `${artist.name}-${index}`}>
           {index > 0 && (
-            <span className="select-none whitespace-pre">
-              {separator}
-            </span>
+            <span className="select-none whitespace-pre">{separator}</span>
           )}
           <span
             role={isClickable ? "button" : undefined}
@@ -148,9 +158,7 @@ export default function ArtistLink({
         innerContent = parts.map((part, index) => (
           <Fragment key={`${part}-${index}`}>
             {index > 0 && (
-              <span className="select-none whitespace-pre">
-                {separator}
-              </span>
+              <span className="select-none whitespace-pre">{separator}</span>
             )}
             <span
               role="button"
@@ -207,17 +215,18 @@ export default function ArtistLink({
     }
   }
 
-  const maskStyle = delta > 0
-    ? {
-        maskImage: hovered
-          ? "linear-gradient(to right, transparent 0px, black 12px, black calc(100% - 14px), transparent 100%)"
-          : "linear-gradient(to right, black 0px, black calc(100% - 14px), transparent 100%)",
-        WebkitMaskImage: hovered
-          ? "linear-gradient(to right, transparent 0px, black 12px, black calc(100% - 14px), transparent 100%)"
-          : "linear-gradient(to right, black 0px, black calc(100% - 14px), transparent 100%)",
-        transition: "mask-image 200ms ease, -webkit-mask-image 200ms ease",
-      }
-    : undefined;
+  const maskStyle =
+    delta > 0
+      ? {
+          maskImage: hovered
+            ? "linear-gradient(to right, transparent 0px, black 12px, black calc(100% - 14px), transparent 100%)"
+            : "linear-gradient(to right, black 0px, black calc(100% - 14px), transparent 100%)",
+          WebkitMaskImage: hovered
+            ? "linear-gradient(to right, transparent 0px, black 12px, black calc(100% - 14px), transparent 100%)"
+            : "linear-gradient(to right, black 0px, black calc(100% - 14px), transparent 100%)",
+          transition: "mask-image 200ms ease, -webkit-mask-image 200ms ease",
+        }
+      : undefined;
 
   return (
     <span
@@ -249,4 +258,3 @@ export default function ArtistLink({
     </span>
   );
 }
-

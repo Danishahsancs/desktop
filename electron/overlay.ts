@@ -1,8 +1,18 @@
 import { BrowserWindow, ipcMain, screen, globalShortcut, app } from "electron";
 import path from "node:path";
 import fs from "node:fs";
+import {
+  createCompositorBridge,
+  type CompositorBridge,
+} from "./compositor/index.js";
 
 export type OverlayPosition = "top-left" | "top-center" | "top-right";
+
+const OVERLAY_TITLE = "Liner Overlay";
+const OVERLAY_MARGIN = 20;
+const TOGGLE_ACTION = "toggle-overlay";
+const LIKE_ACTION = "like-track";
+const COMPOSITOR_SETTLE_MS = 300;
 
 export interface OverlaySettings {
   enabled: boolean;
@@ -14,19 +24,59 @@ export interface OverlaySettings {
 }
 
 const CYRILLIC_TO_QWERTY: Record<string, string> = {
-  "й": "Q", "ц": "W", "у": "E", "к": "R", "е": "T", "н": "Y", "г": "U", "ш": "I", "щ": "O", "з": "P", "х": "[", "ъ": "]",
-  "ф": "A", "ы": "S", "в": "D", "а": "F", "п": "G", "р": "H", "о": "J", "л": "K", "д": "L", "ж": ";", "э": "'",
-  "я": "Z", "ч": "X", "с": "C", "м": "V", "и": "B", "т": "N", "ь": "M", "б": ",", "ю": ".", "ё": "`",
-  "і": "S", "ї": "]", "є": "'", "ґ": "\\",
+  й: "Q",
+  ц: "W",
+  у: "E",
+  к: "R",
+  е: "T",
+  н: "Y",
+  г: "U",
+  ш: "I",
+  щ: "O",
+  з: "P",
+  х: "[",
+  ъ: "]",
+  ф: "A",
+  ы: "S",
+  в: "D",
+  а: "F",
+  п: "G",
+  р: "H",
+  о: "J",
+  л: "K",
+  д: "L",
+  ж: ";",
+  э: "'",
+  я: "Z",
+  ч: "X",
+  с: "C",
+  м: "V",
+  и: "B",
+  т: "N",
+  ь: "M",
+  б: ",",
+  ю: ".",
+  ё: "`",
+  і: "S",
+  ї: "]",
+  є: "'",
+  ґ: "\\",
 };
 
 function normalizeShortcut(raw: string): string {
   if (!raw) return "";
-  const parts = raw.split("+").map((p) => p.trim()).filter(Boolean);
+  const parts = raw
+    .split("+")
+    .map((p) => p.trim())
+    .filter(Boolean);
   const normalized: string[] = [];
   for (const part of parts) {
     const lower = part.toLowerCase();
-    if (lower === "control" || lower === "ctrl" || lower === "commandorcontrol") {
+    if (
+      lower === "control" ||
+      lower === "ctrl" ||
+      lower === "commandorcontrol"
+    ) {
       normalized.push("Control");
     } else if (lower === "alt" || lower === "option") {
       normalized.push("Alt");
@@ -47,6 +97,30 @@ function normalizeShortcut(raw: string): string {
   return normalized.join("+");
 }
 
+const WARM_DELAY_MS = 600;
+const REVEAL_FALLBACK_MS = 2_500;
+const LEGACY_READY_FALLBACK_MS = 1_500;
+const TRANSITION_READY_WAIT_MS = 1_200;
+const CRASH_WINDOW_MS = 60_000;
+const MAX_CRASHES_PER_WINDOW = 3;
+const PRIME_PAINT_WAIT_MS = 600;
+const PRIME_SETTLE_MS = 50;
+const IDLE_DESTROY_MS = 3 * 60_000;
+
+function waitForFrame(win: BrowserWindow, timeoutMs: number): Promise<void> {
+  const painted = win.webContents
+    .executeJavaScript(
+      "new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(1))))",
+      false,
+    )
+    .then(() => undefined)
+    .catch(() => undefined);
+  return Promise.race([
+    painted,
+    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
+}
+
 export class OverlayManager {
   private mainWindow: BrowserWindow | null = null;
   private overlayWindow: BrowserWindow | null = null;
@@ -65,16 +139,92 @@ export class OverlayManager {
   private alwaysOnTop = true;
   private wasAutoOpened = false;
   private isAuthenticated = false;
+  // set once the app is quitting: nothing may create a window or grab a shortcut again
+  private disposed = false;
 
   private moveAnimationTimer: NodeJS.Timeout | null = null;
   private currentAnimatedX: number | null = null;
   private closeTimeout: NodeJS.Timeout | null = null;
+  private compositor: CompositorBridge | null = null;
+  private rendererAuthenticated = false;
+  private authSource: (() => boolean) | null = null;
+  private contentReady = false;
+  private pendingShow = false;
+  private readyWaiters: Array<() => void> = [];
+  private warmTimer: NodeJS.Timeout | null = null;
+  private idleTimer: NodeJS.Timeout | null = null;
+  private readyFallbackTimer: NodeJS.Timeout | null = null;
+  private revealFallbackTimer: NodeJS.Timeout | null = null;
+  private crashTimes: number[] = [];
+  private crashCooldownUntil = 0;
+  private primed = false;
+  private priming = false;
+  private wantVisible = false;
+  private indexPathResolver: (() => string) | null = null;
+  private loadedIndexPath: string | null = null;
 
   constructor(preloadPath: string, rendererDist: string) {
     this.preloadPath = preloadPath;
     this.rendererDist = rendererDist;
     this.loadPersistedSettings();
     this.registerIpcHandlers();
+    this.compositor = createCompositorBridge((action) =>
+      this.handleCompositorAction(action),
+    );
+  }
+
+  private handleCompositorAction(action: string) {
+    if (action === TOGGLE_ACTION) {
+      if (this.isAuthenticated && this.enabled) this.toggleOverlay();
+      return;
+    }
+    if (action === LIKE_ACTION) this.triggerLike();
+  }
+
+  private triggerLike() {
+    if (!this.isAuthenticated) return;
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send("overlay:action", {
+        type: "like",
+        payload: { fromGlobalShortcut: true },
+        fromGlobalShortcut: true,
+      });
+    }
+  }
+
+  private placeWithCompositor(): Promise<boolean> {
+    if (!this.compositor) return Promise.resolve(false);
+    const { width, height } = this.getWindowBounds();
+    return this.compositor.placeOverlay({
+      title: OVERLAY_TITLE,
+      width,
+      height,
+      anchor: this.position,
+      pinned: this.alwaysOnTop,
+      margin: OVERLAY_MARGIN,
+    });
+  }
+
+  private revealWindow() {
+    const win = this.overlayWindow;
+    if (!win || win.isDestroyed()) return;
+    const compositor = this.compositor;
+    if (!compositor) {
+      win.showInactive();
+      this.applyAlwaysOnTop();
+      return;
+    }
+    void compositor.captureFocus().finally(() => {
+      if (win.isDestroyed()) return;
+      win.showInactive();
+      void this.placeWithCompositor().then(() => {
+        setTimeout(() => {
+          if (!win.isDestroyed() && win.isVisible()) {
+            void this.placeWithCompositor();
+          }
+        }, COMPOSITOR_SETTLE_MS);
+      });
+    });
   }
 
   private getSettingsFilePath(): string {
@@ -139,7 +289,8 @@ export class OverlayManager {
     this.mainWindow = win;
     if (this.mainWindow) {
       this.mainWindow.on("minimize", () => {
-        if (!this.isAuthenticated || !this.enabled || !this.autoShowOnMinimize) return;
+        if (!this.isAuthenticated || !this.enabled || !this.autoShowOnMinimize)
+          return;
         this.wasAutoOpened = true;
         // Small delay so the OS completes window minimization and activates
         // the underlying window (e.g. fullscreen browser) before overlay displays and elevates
@@ -150,6 +301,10 @@ export class OverlayManager {
       });
 
       this.mainWindow.on("restore", () => {
+        if (this.restoreInterceptor?.()) {
+          this.wasAutoOpened = false;
+          return;
+        }
         if (this.wasAutoOpened) {
           this.wasAutoOpened = false;
           this.closeOverlay();
@@ -159,6 +314,10 @@ export class OverlayManager {
       this.mainWindow.on("closed", () => {
         this.destroy();
       });
+
+      this.mainWindow.webContents.on("did-finish-load", () =>
+        this.syncBundle(),
+      );
     }
   }
 
@@ -168,6 +327,9 @@ export class OverlayManager {
       clearTimeout(this.closeTimeout);
       this.closeTimeout = null;
     }
+    this.clearLifecycleTimers();
+    this.pendingShow = false;
+    this.resetContentReady();
     this.unregisterShortcut();
     this.unregisterLikeShortcut();
     if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
@@ -177,6 +339,14 @@ export class OverlayManager {
     }
     this.overlayWindow = null;
     this.mainWindow = null;
+  }
+
+  /** permanent teardown for app quit; unlike destroy() nothing can revive the overlay afterwards */
+  public dispose() {
+    this.disposed = true;
+    this.destroy();
+    void this.compositor?.dispose();
+    this.compositor = null;
   }
 
   public pauseShortcuts(paused: boolean) {
@@ -194,6 +364,7 @@ export class OverlayManager {
   }
 
   public registerShortcut(newShortcut?: string) {
+    if (this.disposed) return;
     if (newShortcut) {
       this.shortcut = normalizeShortcut(newShortcut);
     } else if (this.shortcut) {
@@ -204,6 +375,22 @@ export class OverlayManager {
 
     if (this.shortcutsPaused || !this.enabled || !this.shortcut) return;
 
+    const shortcut = this.shortcut;
+    if (this.compositor) {
+      void this.compositor.bindShortcut(TOGGLE_ACTION, shortcut).then((ok) => {
+        if (!ok && !this.disposed && this.shortcut === shortcut) {
+          this.registerGlobalToggle();
+        }
+      });
+    } else {
+      this.registerGlobalToggle();
+    }
+
+    // Ensure like shortcut is also active
+    this.registerLikeShortcut();
+  }
+
+  private registerGlobalToggle() {
     try {
       const ok = globalShortcut.register(this.shortcut, () => {
         if (!this.isAuthenticated || !this.enabled) return;
@@ -212,17 +399,18 @@ export class OverlayManager {
       if (ok) {
         this.currentRegisteredShortcut = this.shortcut;
       } else {
-        console.warn("[overlay] Failed to register global shortcut:", this.shortcut);
+        console.warn(
+          "[overlay] Failed to register global shortcut:",
+          this.shortcut,
+        );
       }
     } catch (e) {
       console.error("[overlay] Error registering global shortcut:", e);
     }
-
-    // Ensure like shortcut is also active
-    this.registerLikeShortcut();
   }
 
   public unregisterShortcut() {
+    if (this.compositor) void this.compositor.unbindShortcut(TOGGLE_ACTION);
     if (this.currentRegisteredShortcut) {
       try {
         globalShortcut.unregister(this.currentRegisteredShortcut);
@@ -237,6 +425,7 @@ export class OverlayManager {
   }
 
   public registerLikeShortcut(newShortcut?: string) {
+    if (this.disposed) return;
     if (newShortcut) {
       this.likeShortcut = normalizeShortcut(newShortcut);
     } else if (this.likeShortcut) {
@@ -247,21 +436,34 @@ export class OverlayManager {
 
     if (this.shortcutsPaused || !this.likeShortcut) return;
 
+    if (this.compositor) {
+      const likeShortcut = this.likeShortcut;
+      void this.compositor
+        .bindShortcut(LIKE_ACTION, likeShortcut)
+        .then((ok) => {
+          if (!ok && !this.disposed && this.likeShortcut === likeShortcut) {
+            this.registerGlobalLike();
+          }
+        });
+      return;
+    }
+
+    this.registerGlobalLike();
+  }
+
+  private registerGlobalLike() {
+    if (!this.likeShortcut) return;
     try {
-      const ok = globalShortcut.register(this.likeShortcut, () => {
-        if (!this.isAuthenticated) return;
-        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-          this.mainWindow.webContents.send("overlay:action", {
-            type: "like",
-            payload: { fromGlobalShortcut: true },
-            fromGlobalShortcut: true,
-          });
-        }
-      });
+      const ok = globalShortcut.register(this.likeShortcut, () =>
+        this.triggerLike(),
+      );
       if (ok) {
         this.currentRegisteredLikeShortcut = this.likeShortcut;
       } else {
-        console.warn("[overlay] Failed to register global like shortcut:", this.likeShortcut);
+        console.warn(
+          "[overlay] Failed to register global like shortcut:",
+          this.likeShortcut,
+        );
       }
     } catch (e) {
       console.error("[overlay] Error registering global like shortcut:", e);
@@ -269,6 +471,7 @@ export class OverlayManager {
   }
 
   public unregisterLikeShortcut() {
+    if (this.compositor) void this.compositor.unbindShortcut(LIKE_ACTION);
     if (this.currentRegisteredLikeShortcut) {
       try {
         globalShortcut.unregister(this.currentRegisteredLikeShortcut);
@@ -290,7 +493,9 @@ export class OverlayManager {
     let targetDisplay = screen.getPrimaryDisplay();
     try {
       if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
-        targetDisplay = screen.getDisplayMatching(this.overlayWindow.getBounds());
+        targetDisplay = screen.getDisplayMatching(
+          this.overlayWindow.getBounds(),
+        );
       } else if (this.mainWindow && !this.mainWindow.isDestroyed()) {
         targetDisplay = screen.getDisplayMatching(this.mainWindow.getBounds());
       }
@@ -328,7 +533,10 @@ export class OverlayManager {
     }
   }
 
-  private animateWindowBounds(targetBounds: { x: number; y: number; width: number; height: number }, durationMs = 140) {
+  private animateWindowBounds(
+    targetBounds: { x: number; y: number; width: number; height: number },
+    durationMs = 140,
+  ) {
     if (!this.overlayWindow || this.overlayWindow.isDestroyed()) return;
 
     this.stopMoveAnimation();
@@ -374,36 +582,350 @@ export class OverlayManager {
     }, interval);
   }
 
+  /** where the overlay pill sits (or will sit) on screen, in dip */
+  public getPillBounds(): {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } {
+    if (
+      this.overlayWindow &&
+      !this.overlayWindow.isDestroyed() &&
+      this.overlayWindow.isVisible()
+    ) {
+      return this.overlayWindow.getBounds();
+    }
+    return this.getWindowBounds();
+  }
+
+  /** minimizing the main window will bring the overlay up */
+  public willShowOnMinimize(): boolean {
+    return (
+      !this.disposed &&
+      this.isAuthenticated &&
+      this.enabled &&
+      this.autoShowOnMinimize
+    );
+  }
+
+  public async openForTransition(
+    beforeShow: (win: BrowserWindow) => void,
+  ): Promise<BrowserWindow | null> {
+    if (this.disposed || !this.isAuthenticated || !this.enabled) return null;
+    this.cancelIdleDestroy();
+    if (this.closeTimeout) {
+      clearTimeout(this.closeTimeout);
+      this.closeTimeout = null;
+    }
+    const win = this.ensureWindow();
+    if (!win) return null;
+    beforeShow(win);
+    if (!this.contentReady) await this.waitForContent(TRANSITION_READY_WAIT_MS);
+    if (win.isDestroyed() || this.overlayWindow !== win) return null;
+    this.pendingShow = true;
+    this.reveal();
+    this.wasAutoOpened = true;
+    return win;
+  }
+
+  public holdForTransition() {
+    this.wasAutoOpened = false;
+  }
+
+  public prewarm() {
+    this.ensureWindow();
+  }
+
+  public enablePrewarm() {
+    this.scheduleWarm();
+  }
+
+  public setIndexPathResolver(resolve: () => string) {
+    this.indexPathResolver = resolve;
+  }
+
+  private currentIndexPath(): string {
+    return (
+      this.indexPathResolver?.() ?? path.join(this.rendererDist, "index.html")
+    );
+  }
+
+  private syncBundle() {
+    const win = this.overlayWindow;
+    if (!win || win.isDestroyed() || process.env.VITE_DEV_SERVER_URL) return;
+    if (
+      this.loadedIndexPath === this.currentIndexPath() ||
+      win.isVisible() ||
+      this.pendingShow
+    )
+      return;
+    this.overlayWindow = null;
+    this.resetContentReady();
+    try {
+      win.destroy();
+    } catch {}
+    this.scheduleWarm();
+  }
+
+  public isReadyForTransition(): boolean {
+    const win = this.getWindow();
+    return Boolean(win) && this.contentReady && this.primed && !this.priming;
+  }
+
+  private primeSurface(win: BrowserWindow) {
+    if (process.platform !== "win32" || this.primed || this.priming) return;
+    if (win.isVisible()) {
+      this.primed = true;
+      return;
+    }
+    this.priming = true;
+    void (async () => {
+      try {
+        win.setOpacity(0);
+        win.showInactive();
+        await waitForFrame(win, PRIME_PAINT_WAIT_MS);
+        await new Promise<void>((resolve) =>
+          setTimeout(resolve, PRIME_SETTLE_MS),
+        );
+      } catch {}
+      this.priming = false;
+      if (win.isDestroyed() || this.overlayWindow !== win) return;
+      if (!this.wantVisible) win.hide();
+      win.setOpacity(1);
+      this.primed = true;
+    })();
+  }
+
+  public bindAuthSource(
+    isSignedIn: () => boolean,
+    subscribe: (listener: () => void) => void,
+  ) {
+    this.authSource = isSignedIn;
+    subscribe(() => this.refreshAuth());
+    this.refreshAuth();
+  }
+
+  /** the overlay window, when it exists */
+  public getWindow(): BrowserWindow | null {
+    return this.overlayWindow && !this.overlayWindow.isDestroyed()
+      ? this.overlayWindow
+      : null;
+  }
+
+  // main installs this to animate the window back out of the overlay (F in the overlay)
+  private focusMainHandler: ((restore: () => void) => void) | null = null;
+
+  public setFocusMainHandler(handler: ((restore: () => void) => void) | null) {
+    this.focusMainHandler = handler;
+  }
+
+  private restoreInterceptor: (() => boolean) | null = null;
+
+  public setRestoreInterceptor(interceptor: (() => boolean) | null) {
+    this.restoreInterceptor = interceptor;
+  }
+
   public showOverlay() {
-    if (!this.isAuthenticated || !this.enabled) return;
+    if (this.disposed || !this.isAuthenticated || !this.enabled) return;
+    this.cancelIdleDestroy();
 
     if (this.closeTimeout) {
       clearTimeout(this.closeTimeout);
       this.closeTimeout = null;
     }
 
-    if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
-      const bounds = this.getWindowBounds();
-      const currentBounds = this.overlayWindow.getBounds();
-      if (
-        currentBounds.x !== bounds.x ||
-        currentBounds.y !== bounds.y ||
-        currentBounds.width !== bounds.width ||
-        currentBounds.height !== bounds.height
-      ) {
-        this.overlayWindow.setBounds(bounds);
-      }
-      if (this.latestState) {
-        this.overlayWindow.webContents.send("overlay:state", this.latestState);
-      }
-      this.overlayWindow.webContents.send("overlay:visibility", true);
-      if (!this.overlayWindow.isVisible()) {
-        this.overlayWindow.showInactive();
-      }
-      this.applyAlwaysOnTop();
+    this.pendingShow = true;
+    if (!this.ensureWindow()) {
+      this.pendingShow = false;
       return;
     }
-    this.createOverlayWindow();
+    if (this.contentReady) {
+      this.reveal();
+      return;
+    }
+    if (!this.revealFallbackTimer) {
+      this.revealFallbackTimer = setTimeout(() => {
+        this.revealFallbackTimer = null;
+        this.reveal();
+      }, REVEAL_FALLBACK_MS);
+    }
+  }
+
+  private reveal() {
+    if (!this.pendingShow) return;
+    this.pendingShow = false;
+    if (this.revealFallbackTimer) {
+      clearTimeout(this.revealFallbackTimer);
+      this.revealFallbackTimer = null;
+    }
+    const win = this.overlayWindow;
+    if (!win || win.isDestroyed() || !this.isAuthenticated || !this.enabled)
+      return;
+    this.wantVisible = true;
+    const bounds = this.getWindowBounds();
+    const currentBounds = win.getBounds();
+    if (
+      currentBounds.x !== bounds.x ||
+      currentBounds.y !== bounds.y ||
+      currentBounds.width !== bounds.width ||
+      currentBounds.height !== bounds.height
+    ) {
+      win.setBounds(bounds);
+    }
+    if (this.latestState) {
+      win.webContents.send("overlay:state", this.latestState);
+    }
+    win.webContents.send("overlay:visibility", true);
+    win.setOpacity(1);
+    this.primed = true;
+    this.revealWindow();
+  }
+
+  private ensureWindow(): BrowserWindow | null {
+    if (this.disposed || !this.isAuthenticated || !this.enabled) return null;
+    if (Date.now() < this.crashCooldownUntil) return null;
+    if (!this.overlayWindow || this.overlayWindow.isDestroyed()) {
+      this.createOverlayWindow();
+    }
+    return this.overlayWindow && !this.overlayWindow.isDestroyed()
+      ? this.overlayWindow
+      : null;
+  }
+
+  private scheduleWarm() {
+    if (
+      this.disposed ||
+      !this.isAuthenticated ||
+      !this.enabled ||
+      !this.autoShowOnMinimize
+    )
+      return;
+    if (this.overlayWindow && !this.overlayWindow.isDestroyed()) return;
+    if (this.warmTimer) return;
+    this.warmTimer = setTimeout(() => {
+      this.warmTimer = null;
+      if (!this.autoShowOnMinimize) return;
+      this.ensureWindow();
+    }, WARM_DELAY_MS);
+  }
+
+  private isOnScreen(): boolean {
+    return Boolean(
+      this.overlayWindow &&
+      !this.overlayWindow.isDestroyed() &&
+      this.wantVisible,
+    );
+  }
+
+  private cancelIdleDestroy() {
+    if (this.idleTimer) {
+      clearTimeout(this.idleTimer);
+      this.idleTimer = null;
+    }
+  }
+
+  private scheduleIdleDestroy() {
+    this.cancelIdleDestroy();
+    if (
+      this.autoShowOnMinimize ||
+      !this.overlayWindow ||
+      this.overlayWindow.isDestroyed()
+    )
+      return;
+    this.idleTimer = setTimeout(() => {
+      this.idleTimer = null;
+      const win = this.overlayWindow;
+      if (
+        !win ||
+        win.isDestroyed() ||
+        this.autoShowOnMinimize ||
+        this.wantVisible ||
+        this.pendingShow
+      )
+        return;
+      this.overlayWindow = null;
+      this.resetContentReady();
+      try {
+        win.destroy();
+      } catch {}
+    }, IDLE_DESTROY_MS);
+  }
+
+  private markContentReady() {
+    if (this.readyFallbackTimer) {
+      clearTimeout(this.readyFallbackTimer);
+      this.readyFallbackTimer = null;
+    }
+    if (this.contentReady) return;
+    this.contentReady = true;
+    const waiters = this.readyWaiters;
+    this.readyWaiters = [];
+    for (const resolve of waiters) resolve();
+    this.reveal();
+    const win = this.overlayWindow;
+    if (win && !win.isDestroyed()) this.primeSurface(win);
+  }
+
+  private resetContentReady() {
+    this.contentReady = false;
+    this.primed = false;
+    this.priming = false;
+    const waiters = this.readyWaiters;
+    this.readyWaiters = [];
+    for (const resolve of waiters) resolve();
+  }
+
+  private waitForContent(timeoutMs: number): Promise<void> {
+    if (this.contentReady) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      const done = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      const timer = setTimeout(done, timeoutMs);
+      this.readyWaiters.push(done);
+    });
+  }
+
+  private clearLifecycleTimers() {
+    for (const timer of [
+      this.warmTimer,
+      this.readyFallbackTimer,
+      this.revealFallbackTimer,
+      this.idleTimer,
+    ]) {
+      if (timer) clearTimeout(timer);
+    }
+    this.warmTimer = null;
+    this.idleTimer = null;
+    this.readyFallbackTimer = null;
+    this.revealFallbackTimer = null;
+  }
+
+  private handleRendererGone(win: BrowserWindow, reason: string) {
+    if (this.overlayWindow !== win) return;
+    console.warn(`[overlay] renderer gone (${reason}), rebuilding the overlay`);
+    this.overlayWindow = null;
+    this.resetContentReady();
+    try {
+      win.destroy();
+    } catch {}
+    const now = Date.now();
+    this.crashTimes = this.crashTimes.filter((t) => now - t < CRASH_WINDOW_MS);
+    this.crashTimes.push(now);
+    if (this.crashTimes.length > MAX_CRASHES_PER_WINDOW) {
+      console.error(
+        "[overlay] renderer keeps crashing, not rebuilding it for now",
+      );
+      this.crashTimes = [];
+      this.crashCooldownUntil = now + CRASH_WINDOW_MS;
+      this.pendingShow = false;
+      this.clearLifecycleTimers();
+      return;
+    }
+    if (this.pendingShow) this.showOverlay();
+    else this.scheduleWarm();
   }
 
   public toggleOverlay(): boolean {
@@ -413,22 +935,27 @@ export class OverlayManager {
     }
 
     this.wasAutoOpened = false;
-    if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
-      if (this.overlayWindow.isVisible() && !this.closeTimeout) {
-        this.closeOverlay();
-        return false;
-      } else {
-        this.showOverlay();
-        return true;
-      }
+    if (
+      this.overlayWindow &&
+      !this.overlayWindow.isDestroyed() &&
+      this.overlayWindow.isVisible() &&
+      !this.closeTimeout
+    ) {
+      this.closeOverlay();
+      return false;
     }
-
-    this.createOverlayWindow();
+    this.showOverlay();
     return true;
   }
 
   public closeOverlay() {
     this.wasAutoOpened = false;
+    this.pendingShow = false;
+    this.wantVisible = false;
+    if (this.revealFallbackTimer) {
+      clearTimeout(this.revealFallbackTimer);
+      this.revealFallbackTimer = null;
+    }
     if (this.closeTimeout) {
       clearTimeout(this.closeTimeout);
       this.closeTimeout = null;
@@ -447,10 +974,16 @@ export class OverlayManager {
         this.overlayWindow.hide();
       }
     }
+    this.scheduleIdleDestroy();
   }
 
   private applyAlwaysOnTop() {
     if (!this.overlayWindow || this.overlayWindow.isDestroyed()) return;
+
+    if (this.compositor) {
+      if (this.overlayWindow.isVisible()) void this.placeWithCompositor();
+      return;
+    }
 
     if (!this.alwaysOnTop) {
       try {
@@ -464,7 +997,9 @@ export class OverlayManager {
     }
 
     try {
-      this.overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      this.overlayWindow.setVisibleOnAllWorkspaces(true, {
+        visibleOnFullScreen: true,
+      });
     } catch {}
 
     const elevate = () => {
@@ -478,6 +1013,7 @@ export class OverlayManager {
           this.overlayWindow.setAlwaysOnTop(true);
         }
       }
+      if (!this.wantVisible) return;
       try {
         this.overlayWindow.moveTop();
       } catch {}
@@ -489,18 +1025,27 @@ export class OverlayManager {
   }
 
   public setAuthenticated(authenticated: boolean) {
-    this.isAuthenticated = Boolean(authenticated);
+    this.rendererAuthenticated = Boolean(authenticated);
+    this.refreshAuth();
+  }
+
+  private refreshAuth() {
+    const was = this.isAuthenticated;
+    this.isAuthenticated =
+      this.rendererAuthenticated || Boolean(this.authSource?.());
     if (!this.isAuthenticated) {
       this.closeOverlay();
+    } else if (!was) {
+      this.scheduleWarm();
     }
   }
 
   private createOverlayWindow() {
-    if (!this.isAuthenticated || !this.enabled) return;
+    if (this.disposed || !this.isAuthenticated || !this.enabled) return;
     const bounds = this.getWindowBounds();
 
     this.overlayWindow = new BrowserWindow({
-      title: "Liner Overlay",
+      title: OVERLAY_TITLE,
       width: bounds.width,
       height: bounds.height,
       x: bounds.x,
@@ -523,51 +1068,73 @@ export class OverlayManager {
       },
     });
 
-    this.overlayWindow.once("ready-to-show", () => {
-      if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
-        if (!this.isAuthenticated || !this.enabled) {
-          this.overlayWindow.hide();
-          return;
-        }
-        if (this.latestState) {
-          this.overlayWindow.webContents.send("overlay:state", this.latestState);
-        }
-        this.overlayWindow.webContents.send("overlay:visibility", true);
-        this.overlayWindow.showInactive();
-        this.applyAlwaysOnTop();
-      }
+    const win = this.overlayWindow;
+    this.resetContentReady();
+    win.webContents.on("render-process-gone", (_event, details) =>
+      this.handleRendererGone(win, details.reason),
+    );
+    win.webContents.on("did-finish-load", () => {
+      if (this.overlayWindow !== win || this.contentReady) return;
+      if (this.readyFallbackTimer) clearTimeout(this.readyFallbackTimer);
+      this.readyFallbackTimer = setTimeout(() => {
+        this.readyFallbackTimer = null;
+        if (this.overlayWindow === win) this.markContentReady();
+      }, LEGACY_READY_FALLBACK_MS);
     });
 
-    this.applyAlwaysOnTop();
-
-    const targetUrl = process.env.VITE_DEV_SERVER_URL
-      ? `${process.env.VITE_DEV_SERVER_URL}#/overlay`
-      : `file://${path.join(this.rendererDist, "index.html")}#/overlay`;
-
-    this.overlayWindow.loadURL(targetUrl);
+    if (process.env.VITE_DEV_SERVER_URL) {
+      this.loadedIndexPath = null;
+      void win.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/overlay`);
+    } else {
+      this.loadedIndexPath = this.currentIndexPath();
+      void win.loadFile(this.loadedIndexPath, { hash: "/overlay" });
+    }
 
     this.overlayWindow.webContents.on("did-finish-load", () => {
-      if (this.latestState && this.overlayWindow && !this.overlayWindow.isDestroyed()) {
+      if (
+        this.latestState &&
+        this.overlayWindow &&
+        !this.overlayWindow.isDestroyed()
+      ) {
         this.overlayWindow.webContents.send("overlay:state", this.latestState);
       }
     });
 
+    this.overlayWindow.on("page-title-updated", (event) =>
+      event.preventDefault(),
+    );
+
     this.overlayWindow.on("closed", () => {
+      if (this.overlayWindow !== win) return;
       this.overlayWindow = null;
+      this.resetContentReady();
     });
   }
 
   private registerIpcHandlers() {
-    ipcMain.on("overlay:set-authenticated", (_event, authenticated: boolean) => {
-      this.setAuthenticated(authenticated);
+    ipcMain.on(
+      "overlay:set-authenticated",
+      (_event, authenticated: boolean) => {
+        this.setAuthenticated(authenticated);
+      },
+    );
+
+    ipcMain.on("overlay:ready", (event) => {
+      if (
+        this.overlayWindow &&
+        !this.overlayWindow.isDestroyed() &&
+        event.sender === this.overlayWindow.webContents
+      ) {
+        this.markContentReady();
+      }
     });
 
     ipcMain.on("overlay:update-state", (_event, state: any) => {
       if (!this.isAuthenticated) return;
       this.latestState = state;
 
-      if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
-        this.overlayWindow.webContents.send("overlay:state", state);
+      if (this.isOnScreen()) {
+        this.overlayWindow!.webContents.send("overlay:state", state);
       }
     });
 
@@ -578,11 +1145,19 @@ export class OverlayManager {
       }
       if (action.type === "focusMainWindow") {
         if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-          if (this.mainWindow.isMinimized()) {
-            this.mainWindow.restore();
-          }
-          this.mainWindow.show();
-          this.mainWindow.focus();
+          const win = this.mainWindow;
+          const restore = () => {
+            if (win.isDestroyed()) return;
+            if (win.isMinimized()) {
+              win.restore();
+            }
+            win.show();
+            win.focus();
+          };
+          // animated (windows 11 add-on) only when coming back from minimized
+          if (this.focusMainHandler && win.isMinimized())
+            this.focusMainHandler(restore);
+          else restore();
         }
         return;
       }
@@ -602,7 +1177,11 @@ export class OverlayManager {
     });
 
     ipcMain.handle("overlay:is-open", () => {
-      return Boolean(this.overlayWindow && !this.overlayWindow.isDestroyed() && this.overlayWindow.isVisible());
+      return Boolean(
+        this.overlayWindow &&
+        !this.overlayWindow.isDestroyed() &&
+        this.overlayWindow.isVisible(),
+      );
     });
 
     ipcMain.on("overlay:close", () => {
@@ -613,68 +1192,94 @@ export class OverlayManager {
       this.pauseShortcuts(Boolean(paused));
     });
 
-    ipcMain.on("overlay:update-settings", (_event, settings: Partial<OverlaySettings>) => {
-      if (!settings || typeof settings !== "object") return;
+    ipcMain.on(
+      "overlay:update-settings",
+      (_event, settings: Partial<OverlaySettings>) => {
+        if (!settings || typeof settings !== "object") return;
 
-      if (typeof settings.enabled === "boolean") {
-        this.enabled = settings.enabled;
-        if (!this.enabled) {
-          this.closeOverlay();
-          this.unregisterShortcut();
-        } else {
-          this.registerShortcut();
-        }
-      }
-
-      let shouldAnimate = false;
-      if (
-        settings.position === "top-left" ||
-        settings.position === "top-center" ||
-        settings.position === "top-right"
-      ) {
-        const changed = this.position !== settings.position;
-        this.position = settings.position;
-        if (changed && this.overlayWindow && !this.overlayWindow.isDestroyed() && this.overlayWindow.isVisible()) {
-          shouldAnimate = true;
-        }
-      }
-
-      if (typeof settings.shortcut === "string" && settings.shortcut.trim()) {
-        const nextShortcut = settings.shortcut.trim();
-        if (nextShortcut !== this.shortcut) {
-          this.shortcut = nextShortcut;
-          if (this.enabled) {
+        if (typeof settings.enabled === "boolean") {
+          this.enabled = settings.enabled;
+          if (!this.enabled) {
+            this.closeOverlay();
+            this.unregisterShortcut();
+          } else {
             this.registerShortcut();
+            this.scheduleWarm();
           }
         }
-      }
 
-      if (typeof settings.likeShortcut === "string" && settings.likeShortcut.trim()) {
-        const nextLikeShortcut = settings.likeShortcut.trim();
-        if (nextLikeShortcut !== this.likeShortcut) {
-          this.likeShortcut = nextLikeShortcut;
-          this.registerLikeShortcut();
+        let shouldAnimate = false;
+        if (
+          settings.position === "top-left" ||
+          settings.position === "top-center" ||
+          settings.position === "top-right"
+        ) {
+          const changed = this.position !== settings.position;
+          this.position = settings.position;
+          if (
+            changed &&
+            this.overlayWindow &&
+            !this.overlayWindow.isDestroyed() &&
+            this.overlayWindow.isVisible()
+          ) {
+            shouldAnimate = true;
+          }
         }
-      }
 
-      if (typeof settings.autoShowOnMinimize === "boolean") {
-        this.autoShowOnMinimize = settings.autoShowOnMinimize;
-      }
+        if (typeof settings.shortcut === "string" && settings.shortcut.trim()) {
+          const nextShortcut = settings.shortcut.trim();
+          if (nextShortcut !== this.shortcut) {
+            this.shortcut = nextShortcut;
+            if (this.enabled) {
+              this.registerShortcut();
+            }
+          }
+        }
 
-      if (typeof settings.alwaysOnTop === "boolean") {
-        this.alwaysOnTop = settings.alwaysOnTop;
-        this.applyAlwaysOnTop();
-      }
+        if (
+          typeof settings.likeShortcut === "string" &&
+          settings.likeShortcut.trim()
+        ) {
+          const nextLikeShortcut = settings.likeShortcut.trim();
+          if (nextLikeShortcut !== this.likeShortcut) {
+            this.likeShortcut = nextLikeShortcut;
+            this.registerLikeShortcut();
+          }
+        }
 
-      if (shouldAnimate) {
-        const targetBounds = this.getWindowBounds();
-        this.animateWindowBounds(targetBounds);
-      } else if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
-        const bounds = this.getWindowBounds();
-        this.overlayWindow.setBounds(bounds);
-      }
+        if (typeof settings.autoShowOnMinimize === "boolean") {
+          this.autoShowOnMinimize = settings.autoShowOnMinimize;
+          if (this.autoShowOnMinimize) {
+            this.cancelIdleDestroy();
+            this.scheduleWarm();
+          } else if (!this.isOnScreen()) {
+            this.scheduleIdleDestroy();
+          }
+        }
 
-      this.savePersistedSettings();
-    });
+        if (typeof settings.alwaysOnTop === "boolean") {
+          this.alwaysOnTop = settings.alwaysOnTop;
+          this.applyAlwaysOnTop();
+        }
+
+        if (this.compositor) {
+          if (
+            this.overlayWindow &&
+            !this.overlayWindow.isDestroyed() &&
+            this.overlayWindow.isVisible()
+          ) {
+            void this.placeWithCompositor();
+          }
+        } else if (shouldAnimate) {
+          const targetBounds = this.getWindowBounds();
+          this.animateWindowBounds(targetBounds);
+        } else if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
+          const bounds = this.getWindowBounds();
+          this.overlayWindow.setBounds(bounds);
+        }
+
+        this.savePersistedSettings();
+      },
+    );
   }
 }

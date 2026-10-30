@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { api, toClientTrack, mediaUrl } from "@/shared/api";
 import { queryCache } from "@/shared/cache/queryCache";
 import type { Track } from "@/shared/types";
 import type { CollectionPageData } from "@/features/collection/hooks/useCollection";
+import { loadWithRetry, useSessionOwner } from "./sessionAwareLoad";
+import { freshFor, useCachedResource } from "@/shared/cache/useCachedResource";
 
 export interface DailyMix {
   id: string;
@@ -25,7 +27,11 @@ export function getDailyMixArtists(
   const addName = (raw?: string) => {
     if (!raw) return;
     const name = raw.trim();
-    if (!name || name.toLowerCase() === "unknown" || seen.has(name.toLowerCase())) {
+    if (
+      !name ||
+      name.toLowerCase() === "unknown" ||
+      seen.has(name.toLowerCase())
+    ) {
       return;
     }
     seen.add(name.toLowerCase());
@@ -47,7 +53,10 @@ export function getDailyMixArtists(
           if (result.length >= targetCount) return result;
         }
       } else if (track.artists) {
-        const parts = track.artists.split(",").map((p) => p.trim()).filter(Boolean);
+        const parts = track.artists
+          .split(",")
+          .map((p) => p.trim())
+          .filter(Boolean);
         for (const part of parts) {
           addName(part);
           if (result.length >= targetCount) return result;
@@ -59,75 +68,70 @@ export function getDailyMixArtists(
   return result;
 }
 
-const cache = { data: [] as DailyMix[], timestamp: 0 };
-const CACHE_TTL = 120_000;
+const EMPTY_MIXES: DailyMix[] = [];
+
+function toDailyMixes(
+  items: Awaited<ReturnType<typeof api.getDailyMixes>>["items"],
+): DailyMix[] {
+  return (items || []).map((mix) => {
+    const clientTracks = (mix.tracks || []).map((t) => toClientTrack(t));
+    const primaryCover = mix.cover?.url
+      ? mediaUrl(mix.cover.url)
+      : clientTracks[0]?.coverUrl || clientTracks[1]?.coverUrl;
+    return {
+      id: mix.id,
+      title: mix.title,
+      description: mix.description,
+      clusterArtists: getDailyMixArtists(mix.clusterArtists, clientTracks, 4),
+      coverUrl: primaryCover,
+      trackCount: mix.trackCount || clientTracks.length,
+      tracks: clientTracks,
+    };
+  });
+}
+
+function primeMixCollections(mixes: DailyMix[]): void {
+  for (const mix of mixes) {
+    const collectionData: CollectionPageData = {
+      type: "playlist",
+      title: mix.title,
+      author:
+        mix.clusterArtists.length > 0
+          ? mix.clusterArtists.join(", ")
+          : "Daily Mix",
+      description: mix.description,
+      coverUrl: mix.coverUrl || "",
+      tracks: mix.tracks,
+    };
+    queryCache.set(`collection:playlist:${mix.id}`, collectionData);
+  }
+}
+
+export function dailyMixesCacheKey(owner: string): string {
+  return `home:daily-mixes:${owner}`;
+}
+
+const DAILY_MIXES_POLICY = {
+  isFresh: freshFor(10 * 60_000),
+  revalidateOnFocus: true,
+  sessionOnly: true,
+};
 
 export function useDailyMixes() {
-  const [data, setData] = useState<DailyMix[]>(() => {
-    return cache.data.length > 0 ? cache.data : [];
-  });
-  const [isLoading, setIsLoading] = useState(() => cache.data.length === 0);
+  const owner = useSessionOwner();
+  const { data, isLoading } = useCachedResource(
+    dailyMixesCacheKey(owner),
+    () =>
+      loadWithRetry(
+        () => api.getDailyMixes(),
+        () => true,
+      ).then((res) => toDailyMixes(res.items)),
+    DAILY_MIXES_POLICY,
+  );
 
   useEffect(() => {
-    if (cache.data.length > 0 && Date.now() - cache.timestamp < CACHE_TTL) {
-      setData(cache.data);
-      setIsLoading(false);
-      return;
-    }
+    if (data) primeMixCollections(data);
+  }, [data]);
 
-    let active = true;
-    api
-      .getDailyMixes()
-      .then((res) => {
-        if (!active) return;
-        const mixes: DailyMix[] = (res.items || []).map((mix) => {
-          const clientTracks = (mix.tracks || []).map((t) => toClientTrack(t));
-          const primaryCover =
-            mix.cover?.url ? mediaUrl(mix.cover.url) :
-            (clientTracks[0]?.coverUrl ||
-            clientTracks[1]?.coverUrl);
-
-          const computedArtists = getDailyMixArtists(mix.clusterArtists, clientTracks, 4);
-
-          const mixItem: DailyMix = {
-            id: mix.id,
-            title: mix.title,
-            description: mix.description,
-            clusterArtists: computedArtists,
-            coverUrl: primaryCover,
-            trackCount: mix.trackCount || clientTracks.length,
-            tracks: clientTracks,
-          };
-
-          // Pre-cache collection playlist page so clicking opens instantly
-          const collectionData: CollectionPageData = {
-            type: "playlist",
-            title: mix.title,
-            author: computedArtists.length > 0 ? computedArtists.join(", ") : "Daily Mix",
-            description: mix.description,
-            coverUrl: primaryCover || "",
-            tracks: clientTracks,
-          };
-          queryCache.set(`collection:playlist:${mix.id}`, collectionData);
-
-          return mixItem;
-        });
-
-        cache.data = mixes;
-        cache.timestamp = Date.now();
-        setData(mixes);
-      })
-      .catch(() => {
-        if (active) setData([]);
-      })
-      .finally(() => {
-        if (active) setIsLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  return { data, isLoading };
+  return { data: data ?? EMPTY_MIXES, isLoading };
 }

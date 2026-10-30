@@ -6,6 +6,17 @@ export const MIN_AUDIO_CACHE_LIMIT_BYTES = 250 * 1024 * 1024;
 
 class AudioCache {
   private activeUrls = new Map<string, string>();
+  private generation = 0;
+
+  // bumped by a clear: downloads started before it must not write back
+  currentGeneration(): number {
+    return this.generation;
+  }
+
+  invalidate(): void {
+    this.generation += 1;
+    this.revokeAll();
+  }
 
   getLimitBytes(): number {
     if (typeof window === "undefined" || !window.localStorage) {
@@ -32,7 +43,8 @@ class AudioCache {
   }
 
   async enforceCacheLimit(customLimit?: number): Promise<number> {
-    const limit = customLimit !== undefined ? customLimit : this.getLimitBytes();
+    const limit =
+      customLimit !== undefined ? customLimit : this.getLimitBytes();
     if (limit <= 0) return 0;
 
     const totalBytes = await linerDb.getTotalAudioBytes();
@@ -77,9 +89,13 @@ class AudioCache {
     trackId: string,
     blob: Blob,
     mimeType: string = "audio/ogg",
-  ): Promise<void> {
+    generation?: number,
+  ): Promise<boolean> {
+    if (generation !== undefined && generation !== this.generation)
+      return false;
     await linerDb.putAudio(trackId, blob, mimeType);
     await this.enforceCacheLimit();
+    return true;
   }
 
   async saveAudioFromUrl(

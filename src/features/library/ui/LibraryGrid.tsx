@@ -1,7 +1,10 @@
 import { useMemo, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useStableNavigate } from "@/shared/hooks/useStableNavigate";
 import AlbumCard from "@/features/collection/ui/AlbumCard";
+import { collectionPreviewState } from "@/features/collection/lib/collectionPreview";
+import { prefetchCollection } from "@/features/collection/hooks/useCollection";
 import PlaylistCard from "./PlaylistCard";
+import SourceBadge from "./SourceBadge";
 import CoverImage from "@/features/covers/ui/CoverImage";
 import DropdownMenu, { type DropdownMenuItem } from "@/shared/ui/DropdownMenu";
 import type {
@@ -12,15 +15,7 @@ import type {
 import { useTranslation } from "@/languages";
 import { useModalStore } from "../store/modalStore";
 import { LuTrash2 } from "react-icons/lu";
-import {
-  More2Fill,
-  PlaylistFill,
-  DiscLine,
-  User1Line,
-  Search2Line,
-  AddLine,
-  Search3Fill,
-} from "@mingcute/react";
+import { More2Fill, PlaylistFill, AddLine, Search3Fill } from "@mingcute/react";
 
 interface LibraryGridProps {
   items: LibraryItemViewModel[];
@@ -31,6 +26,22 @@ interface LibraryGridProps {
   viewMode?: LibraryViewMode;
   sentinelRef: (node: HTMLDivElement | null) => void;
   prependNode?: React.ReactNode;
+}
+
+function collectionLink(item: LibraryItemViewModel) {
+  const kind =
+    item.kind === "album" || item.kind === "playlist" ? item.kind : null;
+  if (!kind || !item.href.startsWith("/collection?")) {
+    return { state: undefined, prefetch: undefined };
+  }
+  return {
+    state: collectionPreviewState({
+      coverUrl: item.imageUrl || undefined,
+      title: item.title,
+      subtitle: item.subtitle,
+    }),
+    prefetch: () => prefetchCollection(kind, item.id),
+  };
 }
 
 function LoadingSkeletonGrid({ circle = false }: { circle?: boolean }) {
@@ -59,9 +70,35 @@ function LoadingSkeletonList() {
   );
 }
 
+export function LibraryGridSkeleton({
+  viewMode = "grid",
+  count = 12,
+}: {
+  viewMode?: LibraryViewMode;
+  count?: number;
+}) {
+  if (viewMode === "list") {
+    return (
+      <div className="flex flex-col gap-[4px] pb-[24px] -mx-[8px]">
+        {Array.from({ length: count }, (_, index) => (
+          <LoadingSkeletonList key={index} />
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(165px,1fr))] gap-[24px] pb-[24px]">
+      {Array.from({ length: count }, (_, index) => (
+        <LoadingSkeletonGrid key={index} />
+      ))}
+    </div>
+  );
+}
+
 function useItemMenuItems(item: LibraryItemViewModel): DropdownMenuItem[] {
   const { t } = useTranslation();
   return useMemo(() => {
+    if (item.source) return [];
     const entityType =
       item.kind === "artist"
         ? "artist"
@@ -81,16 +118,31 @@ function useItemMenuItems(item: LibraryItemViewModel): DropdownMenuItem[] {
             coverUrl: item.imageUrl,
             type: entityType,
             subtitle: item.subtitle,
-            isOwned: item.isOwned ?? (item.kind === "playlist" ? item.href.startsWith("/library/playlist") : false),
+            isOwned:
+              item.isOwned ??
+              (item.kind === "playlist"
+                ? item.href.startsWith("/library/playlist")
+                : false),
           });
         },
       },
     ];
-  }, [item.id, item.title, item.imageUrl, item.subtitle, item.kind, item.isOwned, item.href, t]);
+  }, [
+    item.id,
+    item.title,
+    item.imageUrl,
+    item.subtitle,
+    item.kind,
+    item.isOwned,
+    item.source,
+    item.href,
+    t,
+  ]);
 }
 
 function LibraryItemCard({ item }: { item: LibraryItemViewModel }) {
   const menuItems = useItemMenuItems(item);
+  const link = collectionLink(item);
 
   if (item.kind === "album") {
     return (
@@ -99,6 +151,8 @@ function LibraryItemCard({ item }: { item: LibraryItemViewModel }) {
         title={item.title}
         coverUrl={item.imageUrl}
         trackCount={item.trackCount}
+        subtitle={item.source ? item.subtitle : undefined}
+        badge={<SourceBadge source={item.source} />}
         menuItems={menuItems}
       />
     );
@@ -112,6 +166,9 @@ function LibraryItemCard({ item }: { item: LibraryItemViewModel }) {
       coverUrls={item.coverUrls}
       variant={item.kind === "artist" ? "artist" : "playlist"}
       href={item.href}
+      linkState={link.state}
+      onPointerDown={link.prefetch}
+      badge={<SourceBadge source={item.source} />}
       menuItems={menuItems}
     />
   );
@@ -119,7 +176,8 @@ function LibraryItemCard({ item }: { item: LibraryItemViewModel }) {
 
 function LibraryItemRow({ item }: { item: LibraryItemViewModel }) {
   const menuItems = useItemMenuItems(item);
-  const navigate = useNavigate();
+  const link = collectionLink(item);
+  const navigate = useStableNavigate();
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{
@@ -141,7 +199,8 @@ function LibraryItemRow({ item }: { item: LibraryItemViewModel }) {
   return (
     <div
       onContextMenu={handleContextMenu}
-      onClick={() => navigate(item.href)}
+      onPointerDown={link.prefetch}
+      onClick={() => navigate(item.href, link.state)}
       className="w-full flex items-center justify-between rounded-md p-[8px] outline-none transition-colors duration-150 ease-out cursor-pointer hover:bg-border-alpha-14 select-none"
     >
       <div className="flex items-center gap-[16px] min-w-0">
@@ -171,7 +230,6 @@ function LibraryItemRow({ item }: { item: LibraryItemViewModel }) {
           <h3
             className="m-0 max-w-[min(52vw,560px)] overflow-hidden text-ellipsis whitespace-nowrap text-[16px] leading-[1.2] text-text-primary"
             style={{
-              fontFamily: "var(--font-inter), sans-serif",
               fontWeight: 400,
             }}
             title={item.title}
@@ -181,11 +239,13 @@ function LibraryItemRow({ item }: { item: LibraryItemViewModel }) {
           <p
             className="m-0 flex min-w-0 items-center text-[15px] leading-[1.2] overflow-hidden text-text-secondary"
             style={{
-              fontFamily: "var(--font-inter), sans-serif",
               fontWeight: 350,
             }}
           >
-            {item.subtitle}
+            <span className="flex min-w-0 items-center gap-[6px]">
+              <SourceBadge source={item.source} size="md" />
+              <span className="truncate">{item.subtitle}</span>
+            </span>
           </p>
         </div>
       </div>
@@ -195,7 +255,6 @@ function LibraryItemRow({ item }: { item: LibraryItemViewModel }) {
           <span
             className="text-[14px] text-text-tertiary"
             style={{
-              fontFamily: "var(--font-inter), sans-serif",
               fontWeight: 400,
             }}
           >
@@ -253,7 +312,7 @@ function EmptyLibraryState({
     );
   }
 
-  if (activeTab === "playlists") {
+  if (activeTab === "playlists" || activeTab === "all") {
     return (
       <div className="flex min-h-[320px] flex-col items-center justify-center gap-[14px] text-center px-[20px]">
         <div className="flex flex-col gap-[6px] max-w-[360px]">
@@ -268,7 +327,6 @@ function EmptyLibraryState({
           type="button"
           onClick={() => useModalStore.getState().openCreatePlaylist()}
           className="inline-flex items-center gap-[6px] !h-[36px] rounded-lg px-[16px] text-[13px] font-[500] bg-btn-primary-bg text-btn-primary-text hover:opacity-90 active:scale-[0.96] transition-all border-0 cursor-pointer mt-[2px]"
-          style={{ fontFamily: "var(--font-inter), sans-serif" }}
         >
           <AddLine size={16} />
           <span>{t("library.create_playlist")}</span>
@@ -292,7 +350,6 @@ function EmptyLibraryState({
           type="button"
           onClick={() => useModalStore.getState().openSearch()}
           className="inline-flex items-center gap-[6px] !h-[36px] rounded-lg px-[16px] text-[13px] font-[500] bg-bg-elevated border border-border-primary text-text-primary hover:bg-border-alpha-14 active:scale-[0.96] transition-all cursor-pointer mt-[2px]"
-          style={{ fontFamily: "var(--font-inter), sans-serif" }}
         >
           <Search3Fill size={15} />
           <span>{t("library.search_music")}</span>
@@ -315,7 +372,6 @@ function EmptyLibraryState({
         type="button"
         onClick={() => useModalStore.getState().openSearch()}
         className="inline-flex items-center gap-[6px] !h-[36px] rounded-lg px-[16px] text-[13px] font-[500] bg-bg-elevated border border-border-primary text-text-primary hover:bg-border-alpha-14 active:scale-[0.96] transition-all cursor-pointer mt-[2px]"
-        style={{ fontFamily: "var(--font-inter), sans-serif" }}
       >
         <Search3Fill size={15} />
         <span>{t("library.search_music")}</span>
@@ -380,9 +436,7 @@ export default function LibraryGrid({
             ))
           : null}
 
-        {hasMore ? (
-          <div ref={sentinelRef} className="h-[2px] w-full" />
-        ) : null}
+        {hasMore ? <div ref={sentinelRef} className="h-[2px] w-full" /> : null}
       </div>
     );
   }
@@ -392,7 +446,7 @@ export default function LibraryGrid({
       {prepends.map((node, index) => (
         <div
           key={`prepend-${index}`}
-          className="w-full transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          className="w-full transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] empty:hidden"
         >
           {node}
         </div>
@@ -400,7 +454,7 @@ export default function LibraryGrid({
       {items.map((item) => (
         <div
           key={`${item.kind}:${item.id}`}
-          className="w-full transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          className="w-full transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] empty:hidden"
         >
           <LibraryItemCard item={item} />
         </div>
@@ -409,9 +463,7 @@ export default function LibraryGrid({
       {loadingMore
         ? Array.from({ length: 6 }, (_, index) => (
             <div key={`loader-${index}`} className="w-full">
-              <LoadingSkeletonGrid
-                circle={items[index]?.kind === "artist"}
-              />
+              <LoadingSkeletonGrid circle={items[index]?.kind === "artist"} />
             </div>
           ))
         : null}
@@ -420,4 +472,3 @@ export default function LibraryGrid({
     </div>
   );
 }
-

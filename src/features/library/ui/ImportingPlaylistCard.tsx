@@ -28,7 +28,8 @@ export default function ImportingPlaylistCard({
     }
     if (isRunning) {
       if (job.result?.total) {
-        const processed = (job.result.imported ?? 0) + (job.result.skipped ?? 0);
+        const processed =
+          (job.result.imported ?? 0) + (job.result.skipped ?? 0);
         return t("import.status_running_progress", {
           count: processed,
           total: job.result.total,
@@ -48,7 +49,11 @@ export default function ImportingPlaylistCard({
       const { reviewItems, approvedTracks } = useImportStore.getState();
       useModalStore
         .getState()
-        .openImportReview(job.id, reviewItems ?? undefined, approvedTracks ?? undefined);
+        .openImportReview(
+          job.id,
+          reviewItems ?? undefined,
+          approvedTracks ?? undefined,
+        );
     }
   };
 
@@ -75,7 +80,6 @@ export default function ImportingPlaylistCard({
             <h3
               className="m-0 max-w-[min(52vw,560px)] overflow-hidden text-ellipsis whitespace-nowrap text-[16px] leading-[1.2] text-text-primary"
               style={{
-                fontFamily: "var(--font-inter), sans-serif",
                 fontWeight: 400,
               }}
             >
@@ -84,7 +88,6 @@ export default function ImportingPlaylistCard({
             <p
               className="m-0 flex min-w-0 items-center gap-[6px] text-[14px] leading-[1.2] overflow-hidden text-text-secondary"
               style={{
-                fontFamily: "var(--font-inter), sans-serif",
                 fontWeight: 350,
               }}
             >
@@ -133,7 +136,8 @@ export default function ImportingPlaylistCard({
                   width: `${Math.min(
                     100,
                     Math.round(
-                      (((job.result.imported ?? 0) + (job.result.skipped ?? 0)) /
+                      (((job.result.imported ?? 0) +
+                        (job.result.skipped ?? 0)) /
                         job.result.total) *
                         100,
                     ),

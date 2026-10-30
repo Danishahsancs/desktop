@@ -1,7 +1,16 @@
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
+import { persist } from "zustand/middleware";
 import type { Track } from "@/shared/types";
-import { debouncedStorage } from "@/shared/utils/storage";
+import {
+  createIncrementalJSONStorage,
+  debouncedStorage,
+} from "@/shared/utils/storage";
+import {
+  FLAT_EQ,
+  normalizeEqCustomPresets,
+  normalizeEqGains,
+  type EqCustomPreset,
+} from "../engine/equalizer";
 
 export { debouncedStorage };
 
@@ -63,6 +72,9 @@ export interface SessionState {
   keepSpeedAcrossTracks: boolean;
   isReverbEnabled: boolean;
   reverbLevel: number;
+  isEqEnabled: boolean;
+  eqGains: number[];
+  eqCustomPresets: EqCustomPreset[];
 }
 
 export type PlayerState = TransportState &
@@ -117,11 +129,40 @@ export interface PlayerStore extends PlayerState {
   setKeepSpeedAcrossTracks: (keep: boolean) => void;
   setIsReverbEnabled: (enabled: boolean) => void;
   setReverbLevel: (level: number) => void;
+  setIsEqEnabled: (enabled: boolean) => void;
+  setEqGains: (gains: number[]) => void;
+  setEqCustomPresets: (presets: EqCustomPreset[]) => void;
   resetSpeedAndPitch: () => void;
   clearQueue: () => void;
+  resetPlayback: () => void;
 }
 
 const PLAYER_SESSION_STORAGE_KEY = "liner_player_session_v2";
+const PLAYER_RESUME_STORAGE_KEY = "liner_player_resume_v1";
+const RESUME_SAVE_INTERVAL_MS = 10_000;
+
+interface ResumePosition {
+  trackId: string;
+  positionMs: number;
+}
+
+function readResumePosition(): ResumePosition | null {
+  try {
+    const raw = debouncedStorage.getItem(PLAYER_RESUME_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<ResumePosition> | null;
+    if (
+      typeof parsed?.trackId !== "string" ||
+      typeof parsed.positionMs !== "number" ||
+      !Number.isFinite(parsed.positionMs)
+    ) {
+      return null;
+    }
+    return { trackId: parsed.trackId, positionMs: parsed.positionMs };
+  } catch {
+    return null;
+  }
+}
 
 export const usePlayerStore = create<PlayerStore>()(
   persist(
@@ -160,6 +201,9 @@ export const usePlayerStore = create<PlayerStore>()(
       keepSpeedAcrossTracks: true,
       isReverbEnabled: false,
       reverbLevel: 0.35,
+      isEqEnabled: false,
+      eqGains: FLAT_EQ,
+      eqCustomPresets: [],
 
       dispatch: () => {
         // Implementation injected by PlayerEngine
@@ -194,10 +238,12 @@ export const usePlayerStore = create<PlayerStore>()(
         set({ pauseOnDeviceChange }),
       setAutoplaySimilar: (autoplaySimilar: boolean) =>
         set({ autoplaySimilar }),
-      setTrackDoubleClickBehavior: (trackDoubleClickBehavior: TrackDoubleClickBehavior) =>
-        set({ trackDoubleClickBehavior }),
-      setDefaultPlaybackContext: (defaultPlaybackContext: DefaultPlaybackContext) =>
-        set({ defaultPlaybackContext }),
+      setTrackDoubleClickBehavior: (
+        trackDoubleClickBehavior: TrackDoubleClickBehavior,
+      ) => set({ trackDoubleClickBehavior }),
+      setDefaultPlaybackContext: (
+        defaultPlaybackContext: DefaultPlaybackContext,
+      ) => set({ defaultPlaybackContext }),
       setFullscreen: (fullscreen: boolean) => {
         if (get().fullscreen === fullscreen) return;
         set({ fullscreen });
@@ -207,10 +253,30 @@ export const usePlayerStore = create<PlayerStore>()(
       setIsPitchLinked: (isPitchLinked: boolean) => set({ isPitchLinked }),
       setKeepSpeedAcrossTracks: (keepSpeedAcrossTracks: boolean) =>
         set({ keepSpeedAcrossTracks }),
-      setIsReverbEnabled: (isReverbEnabled: boolean) => set({ isReverbEnabled }),
+      setIsReverbEnabled: (isReverbEnabled: boolean) =>
+        set({ isReverbEnabled }),
       setReverbLevel: (reverbLevel: number) =>
         set({ reverbLevel: Math.max(0, Math.min(1, reverbLevel)) }),
+      setIsEqEnabled: (isEqEnabled: boolean) => set({ isEqEnabled }),
+      setEqGains: (eqGains: number[]) =>
+        set({ eqGains: normalizeEqGains(eqGains) }),
+      setEqCustomPresets: (eqCustomPresets: EqCustomPreset[]) =>
+        set({ eqCustomPresets: normalizeEqCustomPresets(eqCustomPresets) }),
       resetSpeedAndPitch: () => set({ playbackRate: 1, pitchSemitones: 0 }),
+      resetPlayback: () =>
+        set({
+          status: "idle",
+          playbackMode: null,
+          error: null,
+          positionMs: 0,
+          durationMs: 0,
+          queue: [],
+          currentIndex: -1,
+          currentTrack: null,
+          playbackContext: null,
+          playbackContextCover: null,
+          fullscreen: false,
+        }),
       clearQueue: () => {
         const state = get();
         if (state.currentTrack) {
@@ -234,7 +300,18 @@ export const usePlayerStore = create<PlayerStore>()(
     }),
     {
       name: PLAYER_SESSION_STORAGE_KEY,
-      storage: createJSONStorage(() => debouncedStorage),
+      storage: createIncrementalJSONStorage(debouncedStorage),
+      merge: (persisted, current) => {
+        const merged = {
+          ...current,
+          ...((persisted ?? {}) as Partial<PlayerStore>),
+        };
+        const resume = readResumePosition();
+        if (resume && merged.currentTrack?.id === resume.trackId) {
+          merged.positionMs = resume.positionMs;
+        }
+        return merged;
+      },
       onRehydrateStorage: () => (state) => {
         // After hydration, if a track was saved, restore as paused so the UI
         // shows the track and position without auto-playing.
@@ -261,10 +338,16 @@ export const usePlayerStore = create<PlayerStore>()(
           state.accentVariant = "default";
         }
         if (state) {
-          if (typeof state.playbackRate !== "number" || isNaN(state.playbackRate)) {
+          if (
+            typeof state.playbackRate !== "number" ||
+            isNaN(state.playbackRate)
+          ) {
             state.playbackRate = 1;
           }
-          if (typeof state.pitchSemitones !== "number" || isNaN(state.pitchSemitones)) {
+          if (
+            typeof state.pitchSemitones !== "number" ||
+            isNaN(state.pitchSemitones)
+          ) {
             state.pitchSemitones = 0;
           }
           if (typeof state.isPitchLinked !== "boolean") {
@@ -276,9 +359,19 @@ export const usePlayerStore = create<PlayerStore>()(
           if (typeof state.isReverbEnabled !== "boolean") {
             state.isReverbEnabled = false;
           }
-          if (typeof state.reverbLevel !== "number" || isNaN(state.reverbLevel)) {
+          if (
+            typeof state.reverbLevel !== "number" ||
+            isNaN(state.reverbLevel)
+          ) {
             state.reverbLevel = 0.35;
           }
+          if (typeof state.isEqEnabled !== "boolean") {
+            state.isEqEnabled = false;
+          }
+          state.eqGains = normalizeEqGains(state.eqGains);
+          state.eqCustomPresets = normalizeEqCustomPresets(
+            state.eqCustomPresets,
+          );
         }
       },
       partialize: (state) => ({
@@ -290,7 +383,6 @@ export const usePlayerStore = create<PlayerStore>()(
               playbackContext: state.playbackContext,
               playbackContextCover: state.playbackContextCover,
               playbackMode: state.playbackMode,
-              positionMs: state.positionMs,
               durationMs: state.durationMs,
             }
           : {}),
@@ -310,7 +402,55 @@ export const usePlayerStore = create<PlayerStore>()(
         keepSpeedAcrossTracks: state.keepSpeedAcrossTracks,
         isReverbEnabled: state.isReverbEnabled,
         reverbLevel: state.reverbLevel,
+        isEqEnabled: state.isEqEnabled,
+        eqGains: state.eqGains,
+        eqCustomPresets: state.eqCustomPresets,
       }),
     },
   ),
 );
+
+let lastResumeSavedAt = 0;
+let lastResumeValue: string | null = null;
+
+function saveResumePosition(state: PlayerState) {
+  lastResumeSavedAt = Date.now();
+  if (state.defaultPlaybackContext !== "resume" || !state.currentTrack) {
+    if (lastResumeValue !== "") {
+      lastResumeValue = "";
+      debouncedStorage.removeItem(PLAYER_RESUME_STORAGE_KEY);
+    }
+    return;
+  }
+  const value = JSON.stringify({
+    trackId: state.currentTrack.id,
+    positionMs: Math.max(0, Math.round(state.positionMs)),
+  });
+  if (value === lastResumeValue) return;
+  lastResumeValue = value;
+  debouncedStorage.setItem(PLAYER_RESUME_STORAGE_KEY, value);
+}
+
+usePlayerStore.subscribe((state, prev) => {
+  if (
+    state.currentTrack?.id !== prev.currentTrack?.id ||
+    state.status !== prev.status ||
+    state.defaultPlaybackContext !== prev.defaultPlaybackContext
+  ) {
+    saveResumePosition(state);
+    return;
+  }
+  if (
+    state.positionMs !== prev.positionMs &&
+    Date.now() - lastResumeSavedAt >= RESUME_SAVE_INTERVAL_MS
+  ) {
+    saveResumePosition(state);
+  }
+});
+
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeunload", () => {
+    saveResumePosition(usePlayerStore.getState());
+    debouncedStorage.flush();
+  });
+}

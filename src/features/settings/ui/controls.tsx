@@ -1,191 +1,128 @@
 import type { ReactNode } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { getTranslationsForAllLocales } from "@/languages";
+import { cn } from "@/shared/lib/utils";
 
-const font = { fontFamily: "var(--font-inter), sans-serif" } as const;
+const rowSurface = "px-[16px]";
 
-// single-line row: label on the left, control pinned right, like the reference mock
-export function SettingRow({
-  title,
-  description,
-  control,
-  titleKey,
-  descKey,
-  searchQuery,
-}: {
+interface SearchableProps {
   title: string;
   description?: string;
-  control?: ReactNode;
   titleKey?: string;
   descKey?: string;
   searchQuery?: string;
-}) {
-  if (searchQuery && searchQuery.trim()) {
-    const q = searchQuery.toLowerCase().trim();
-    let isMatch =
-      title.toLowerCase().includes(q) ||
-      (description ? description.toLowerCase().includes(q) : false);
+}
 
-    if (!isMatch && (titleKey || descKey)) {
-      const allTexts: string[] = [];
-      if (titleKey) allTexts.push(...getTranslationsForAllLocales(titleKey));
-      if (descKey) allTexts.push(...getTranslationsForAllLocales(descKey));
-      isMatch = allTexts.some((text) => text.toLowerCase().includes(q));
-    }
+function matchesSearch({
+  title,
+  description,
+  titleKey,
+  descKey,
+  searchQuery,
+}: SearchableProps) {
+  const q = searchQuery?.toLowerCase().trim();
+  if (!q) return true;
+  const texts = [title, description ?? ""];
+  if (titleKey) texts.push(...getTranslationsForAllLocales(titleKey));
+  if (descKey) texts.push(...getTranslationsForAllLocales(descKey));
+  return texts.some((text) => text.toLowerCase().includes(q));
+}
 
-    if (!isMatch) return null;
-  }
-
+function RowText({ title, description }: SearchableProps) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-[16px] gap-y-[10px] py-[13px] compact:py-[14px]">
-      <div className="flex min-w-0 max-w-[360px] grow basis-[200px] flex-col gap-[2px]">
-        <span
-          className="text-text-primary text-[13px] compact:text-[15px] font-[500] leading-snug"
-          style={font}
-        >
-          {title}
+    <div className="flex min-w-0 grow basis-[200px] flex-col gap-[3px]">
+      <span className="text-pretty text-text-primary text-[13.5px] font-[500] leading-[18px] tracking-[-0.005em]">
+        {title}
+      </span>
+      {description ? (
+        <span className="relative block max-w-[420px] text-pretty text-text-tertiary text-[12px] leading-[17px]">
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.span
+              key={description}
+              className="block"
+              initial={{ y: 30, opacity: 0, filter: "blur(3px)" }}
+              animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
+              exit={{ y: -12, opacity: 0, filter: "blur(4px)" }}
+              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {description}
+            </motion.span>
+          </AnimatePresence>
         </span>
-        {description ? (
-          <span
-            className="text-text-tertiary text-[12.5px] compact:text-[13.5px] leading-relaxed"
-            style={font}
-          >
-            {description}
-          </span>
-        ) : null}
-      </div>
-      {control ? <div className="shrink-0 max-w-full">{control}</div> : null}
+      ) : null}
     </div>
   );
 }
 
-// stacked block: label on top, wide control (cards, grids) below
-export function SettingBlock({
-  title,
-  description,
-  children,
-  titleKey,
-  descKey,
-  searchQuery,
-}: {
-  title: string;
-  description?: string;
-  children: ReactNode;
-  titleKey?: string;
-  descKey?: string;
-  searchQuery?: string;
-}) {
-  if (searchQuery && searchQuery.trim()) {
-    const q = searchQuery.toLowerCase().trim();
-    let isMatch =
-      title.toLowerCase().includes(q) ||
-      (description ? description.toLowerCase().includes(q) : false);
+interface SettingRowProps extends SearchableProps {
+  control?: ReactNode;
+  icon?: ReactNode;
+  explained?: boolean;
+}
 
-    if (!isMatch && (titleKey || descKey)) {
-      const allTexts: string[] = [];
-      if (titleKey) allTexts.push(...getTranslationsForAllLocales(titleKey));
-      if (descKey) allTexts.push(...getTranslationsForAllLocales(descKey));
-      isMatch = allTexts.some((text) => text.toLowerCase().includes(q));
-    }
-
-    if (!isMatch) return null;
-  }
+export function SettingRow({ control, icon, ...text }: SettingRowProps) {
+  if (!matchesSearch(text)) return null;
 
   return (
-    <div className="flex flex-col gap-[10px] py-[13px]">
-      <div className="flex min-w-0 max-w-[460px] flex-col gap-[2px]">
-        <span
-          className="text-text-primary text-[13px] compact:text-[15px] font-[500] leading-snug"
-          style={font}
-        >
-          {title}
+    <div
+      className={cn(
+        rowSurface,
+        "flex min-h-[52px] flex-wrap items-center justify-between gap-x-[14px] gap-y-[10px] py-[10px]",
+      )}
+    >
+      {icon ? (
+        <span className="flex shrink-0 self-start pt-[1px] text-text-tertiary [&_svg]:h-[18px] [&_svg]:w-[18px]">
+          {icon}
         </span>
-        {description ? (
-          <span
-            className="text-text-tertiary text-[12.5px] compact:text-[13.5px] leading-relaxed"
-            style={font}
-          >
-            {description}
-          </span>
-        ) : null}
-      </div>
+      ) : null}
+      <RowText {...text} />
+      {control ? <div className="max-w-full shrink-0">{control}</div> : null}
+    </div>
+  );
+}
+
+interface SettingBlockProps extends SearchableProps {
+  children: ReactNode;
+}
+
+export function SettingBlock({ children, ...text }: SettingBlockProps) {
+  if (!matchesSearch(text)) return null;
+
+  return (
+    <div className={cn(rowSurface, "flex flex-col gap-[12px] py-[10px]")}>
+      <RowText {...text} />
       {children}
     </div>
   );
 }
 
-// faint uppercase group label, keeps long tabs scannable without extra prose
 export function SettingSection({
   label,
+  action,
   children,
 }: {
   label?: string;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <section className="flex flex-col">
+    <section className="flex flex-col [&:has(>[data-settings-card]>div:empty)]:hidden">
       {label ? (
-        <h4
-          className="text-text-tertiary text-[11px] font-[600] uppercase tracking-[0.07em] m-0 pt-[4px]"
-          style={font}
-        >
-          {label}
-        </h4>
+        <div className="flex items-center justify-between gap-[12px] px-[2px] pb-[8px]">
+          <h4 className="m-0 text-text-primary text-[14px] font-[600] leading-[20px] tracking-[-0.005em]">
+            {label}
+          </h4>
+          {action ? <div className="mr-[4px] flex shrink-0">{action}</div> : null}
+        </div>
       ) : null}
-      <div className="flex flex-col divide-y divide-solid divide-border-primary">
-        {children}
+      <div
+        data-settings-card
+        className="rounded-[14px] bg-black/[0.05] py-[4px] dark:bg-white/[0.07]"
+      >
+        <div className="flex flex-col">{children}</div>
       </div>
     </section>
   );
 }
 
-// compact pill switcher reused by language / playback / mini-player rows
-export function SegmentedControl<T extends string>({
-  options,
-  value,
-  onChange,
-  ariaLabel,
-  disabled = false,
-}: {
-  options: readonly { value: T; label: string }[];
-  value: T;
-  onChange: (next: T) => void;
-  ariaLabel?: string;
-  disabled?: boolean;
-}) {
-  return (
-    <div
-      role={ariaLabel ? "group" : undefined}
-      aria-label={ariaLabel}
-      className={`inline-flex w-fit max-w-full shrink-0 items-center gap-[1px] rounded-lg p-[3px] overflow-x-auto transition-opacity ${
-        disabled
-          ? "bg-border-alpha-10 opacity-50 cursor-not-allowed pointer-events-none"
-          : "bg-border-alpha-14"
-      }`}
-    >
-      {options.map((opt) => {
-        const isActive = opt.value === value;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            disabled={disabled}
-            onClick={() => !disabled && onChange(opt.value)}
-            aria-pressed={isActive}
-            className={`inline-flex h-[26px] compact:h-[34px] items-center whitespace-nowrap rounded-md border-0 px-[11px] compact:px-[14px] text-[12.5px] compact:!text-[14px] leading-none transition-colors ${
-              disabled
-                ? isActive
-                  ? "bg-bg-primary/50 text-text-tertiary cursor-not-allowed"
-                  : "bg-transparent text-text-tertiary/70 cursor-not-allowed"
-                : isActive
-                  ? "bg-bg-primary text-text-primary cursor-pointer"
-                  : "bg-transparent text-text-secondary hover:text-text-primary cursor-pointer"
-            }`}
-            style={{ ...font, fontWeight: isActive ? 500 : 400 }}
-          >
-            {opt.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+export { SegmentedControl } from "./SegmentedControl";

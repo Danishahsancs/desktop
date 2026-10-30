@@ -1,33 +1,51 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./app/App";
-import { RootErrorBoundary } from "@/shared/ui";
 import { initGlobalErrorHandlers } from "@/shared/utils/globalErrorHandlers";
-import { initTelemetry } from "@/shared/telemetry";
-import { initBackgroundStorageAnalytics } from "@/shared/utils/cacheManager";
-import { initClientVisitorSession } from "@/shared/api/visitorSession";
-import { initBundleStampLog } from "@/shared/utils/bundleStampLog";
+import { hydrateScreenCache } from "@/shared/cache/screenCache";
+import { applyStoredTheme } from "@/shared/utils/storedTheme";
 import { installNativeRequestHeaderShim } from "@/shared/platform/nativeRequestHeaders";
+import { installScreenShape } from "@/shared/platform/screenShape";
 
 // android: apply the youtube/apple header rewrite electron does in its main process, before any request
 installNativeRequestHeaderShim();
+// marks short (sideways phone) screens for the layout variants before first paint
+installScreenShape();
 
-// Initialize global uncaught error, telemetry listeners, background storage tracker and visitor session
 initGlobalErrorHandlers();
-initTelemetry();
-initBackgroundStorageAnalytics();
-initClientVisitorSession();
-initBundleStampLog();
+
+const isOverlay = window.location.hash.startsWith("#/overlay");
+
+if (!isOverlay) applyStoredTheme();
+
+async function loadRoot(): Promise<React.ReactElement> {
+  if (isOverlay) {
+    const { default: OverlayApp } = await import("./app/OverlayApp");
+    return <OverlayApp />;
+  }
+  const [
+    { initMainWindowServices },
+    { default: App },
+    { default: RootErrorBoundary },
+  ] = await Promise.all([
+    import("./app/mainWindowServices"),
+    import("./app/App"),
+    import("@/shared/ui/RootErrorBoundary"),
+    hydrateScreenCache(),
+  ]);
+  initMainWindowServices();
+  return (
+    <RootErrorBoundary>
+      <App />
+    </RootErrorBoundary>
+  );
+}
 
 const rootElement = document.getElementById("root");
 
 if (rootElement) {
-  ReactDOM.createRoot(rootElement).render(
-    <React.StrictMode>
-      <RootErrorBoundary>
-        <App />
-      </RootErrorBoundary>
-    </React.StrictMode>,
-  );
+  void loadRoot().then((root) => {
+    ReactDOM.createRoot(rootElement).render(
+      <React.StrictMode>{root}</React.StrictMode>,
+    );
+  });
 }
-

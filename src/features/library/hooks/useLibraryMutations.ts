@@ -22,7 +22,7 @@ function useMutation<T, R = unknown>(action: (input: T) => Promise<R>) {
         setIsPending(false);
       }
     },
-    [action]
+    [action],
   );
   const mutate = useCallback(
     (input: T, options?: Options) => {
@@ -31,20 +31,22 @@ function useMutation<T, R = unknown>(action: (input: T) => Promise<R>) {
         .catch((error) => options?.onError?.(error))
         .finally(() => options?.onSettled?.());
     },
-    [mutateAsync]
+    [mutateAsync],
   );
   return { mutate, mutateAsync, isPending };
 }
 
 export function useAddPlaylistTracks() {
-  return useMutation(({ playlistId, trackId }: { playlistId: string; trackId: string }) =>
-    api.addPlaylistTrack(playlistId, trackId)
+  return useMutation(
+    ({ playlistId, trackId }: { playlistId: string; trackId: string }) =>
+      api.addPlaylistTrack(playlistId, trackId),
   );
 }
 
 export function useRemovePlaylistTracks() {
-  return useMutation(({ playlistId, itemId }: { playlistId: string; itemId: string }) =>
-    api.removePlaylistItem(playlistId, itemId)
+  return useMutation(
+    ({ playlistId, itemId }: { playlistId: string; itemId: string }) =>
+      api.removePlaylistItem(playlistId, itemId),
   );
 }
 
@@ -60,26 +62,40 @@ export function useReorderPlaylistTracks() {
       itemId: string;
       beforeItemId: string | null;
       revision: number;
-    }) => api.movePlaylistItem(playlistId, itemId, beforeItemId, revision)
+    }) => api.movePlaylistItem(playlistId, itemId, beforeItemId, revision),
   );
 }
 
 export function useCreatePlaylist() {
-  return useMutation(({ title, description }: { title: string; description?: string }) =>
-    api.createPlaylist({ title, description })
+  return useMutation(
+    ({ title, description }: { title: string; description?: string }) =>
+      api.createPlaylist({ title, description }),
   );
 }
 
 export function useDeletePlaylist() {
   return useMutation(async ({ playlistId }: { playlistId: string }) => {
     evictPlaylistFromCache(playlistId);
-    return api.deletePlaylist(playlistId);
+    await api.deletePlaylist(playlistId);
   });
 }
 
 export function useSaveExternalItem() {
-  return useMutation(({ type, id }: { type: "album" | "artist" | "playlist"; id: string }) =>
-    api.saveCollection(`${type}s` as "albums" | "artists" | "playlists", id)
+  return useMutation(
+    ({
+      type,
+      id,
+      snapshot,
+    }: {
+      type: "album" | "artist" | "playlist";
+      id: string;
+      snapshot?: Record<string, unknown>;
+    }) =>
+      api.saveCollection(
+        `${type}s` as "albums" | "artists" | "playlists",
+        id,
+        snapshot,
+      ),
   );
 }
 
@@ -147,7 +163,7 @@ export function useLikeTrack() {
         .catch((error) => options?.onError?.(error))
         .finally(() => options?.onSettled?.());
     },
-    [mutateAsync]
+    [mutateAsync],
   );
 
   return { mutate, mutateAsync, isPending };
@@ -179,7 +195,7 @@ export function useUnlikeTrack() {
         .catch((error) => options?.onError?.(error))
         .finally(() => options?.onSettled?.());
     },
-    [mutateAsync]
+    [mutateAsync],
   );
 
   return { mutate, mutateAsync, isPending };

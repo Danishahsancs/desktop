@@ -1,5 +1,12 @@
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { useCallback, useEffect, useState, useMemo, useRef, Suspense } from "react";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  useMemo,
+  useRef,
+  Suspense,
+} from "react";
 import CollectionPageSkeleton from "./CollectionPageSkeleton";
 import {
   AddLine,
@@ -8,34 +15,46 @@ import {
   FolderCheckFill,
   ShareForwardLine,
   PlaylistFill,
-  PlaylistLine,
-  DiscLine,
   MusicLine,
-  CalendarLine,
   CheckLine,
-  More2Line,
-  ArrowLeftLine,
+  More1Fill,
 } from "@mingcute/react";
 import { LuShuffle } from "react-icons/lu";
 import Button from "@/shared/ui/Button";
 import SongCardWithMenu from "@/features/player/ui/SongCardWithMenu";
 import CoverImage from "@/features/covers/ui/CoverImage";
+import { preloadCoverArt } from "@/features/covers/lib/coverArt";
+import { DailyMixCover } from "@/features/home";
 import { playerEngine } from "@/features/player";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   useToast,
-  EntitySidebar,
+  EntityHero,
   DropdownMenu,
-  SIDEBAR_TITLE_CLASS,
-  SIDEBAR_SUBTITLE_CLASS,
+  HERO_TITLE_CLASS,
+  HERO_SUBTITLE_CLASS,
+  HERO_CHIP_CLASS,
+  HERO_BUTTON_CLASS,
+  HERO_GLASS_BUTTON_CLASS,
+  HERO_GLASS_CLASS,
 } from "@/shared/ui";
+import { usePageBackdrop } from "@/shared/lib";
+import { useClassicSurfaces } from "@/features/settings/store/customizationStore";
 import type { Track } from "@/shared/types";
 import { useTranslation } from "@/languages";
 import { useModalStore } from "@/features/library";
 import { buildShareUrl } from "@/shared/utils/share";
 import { useExternalItems } from "@/features/library/hooks";
 import { useCollection } from "../hooks/useCollection";
-import { useIsContentTransparent } from "@/features/settings/store/customizationStore";
+import { readCollectionPreview } from "../lib/collectionPreview";
+import {
+  useTrackSearch,
+  TrackSearchField,
+  TrackSearchEmpty,
+} from "@/features/library/ui/TrackSearch";
+import { useTrackSort, TrackSortMenu } from "@/features/library/ui/TrackSort";
+
+const NO_TRACKS: Track[] = [];
 
 function CollectionContent() {
   const [searchParams] = useSearchParams();
@@ -43,19 +62,28 @@ function CollectionContent() {
   const type = typeParam === "playlist" ? "playlist" : "album";
   const id = searchParams.get("id");
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const hasCustomBg = useIsContentTransparent();
 
+  const location = useLocation();
+  const preview = readCollectionPreview(location.state);
   const { data, loading } = useCollection(type, id);
+  const classicSurfaces = useClassicSurfaces();
+  usePageBackdrop(
+    preview?.coverUrl || data?.coverUrl,
+    type === "playlist" ? { dim: 0.05 } : undefined,
+  );
+  const isSingleArtistAlbum = useMemo(() => {
+    if (type === "playlist" || !data || data.tracks.length === 0) return false;
+    const first = data.tracks[0].artists;
+    return data.tracks.every((track) => track.artists === first);
+  }, [type, data]);
   const entityType = type === "playlist" ? "playlist" : "album";
   const decodedId = id ? decodeURIComponent(id) : "";
   const isDailyMix = Boolean(
     data?.isDailyMix ||
-    (type === "playlist" && (
-      decodedId.startsWith("daily-mix") ||
-      decodedId.startsWith("mix-") ||
-      (id && (id.startsWith("daily-mix") || id.startsWith("mix-")))
-    ))
+    (type === "playlist" &&
+      (decodedId.startsWith("daily-mix") ||
+        decodedId.startsWith("mix-") ||
+        (id && (id.startsWith("daily-mix") || id.startsWith("mix-"))))),
   );
 
   const { data: savedAlbums } = useExternalItems("album");
@@ -65,8 +93,10 @@ function CollectionContent() {
       ? savedAlbums.some((album) => album.id === decodedId)
       : savedPlaylists.some((playlist) => playlist.id === decodedId);
 
-  const [imagesLoaded, setImagesLoaded] = useState(false);
-  const [skeletonExited, setSkeletonExited] = useState(false);
+  const [imagesLoaded, setImagesLoaded] = useState(() => !loading && !!data);
+  const [skeletonExited, setSkeletonExited] = useState(
+    () => !loading && !!data,
+  );
 
   const urlsToPreload = useMemo(() => {
     if (!data) return [];
@@ -94,19 +124,7 @@ function CollectionContent() {
       }
     }, 150);
 
-    const promises = urlsToPreload.map(
-      (url) =>
-        new Promise<void>((resolve) => {
-          const img = new Image();
-          img.src = url;
-          if (img.complete) {
-            resolve();
-            return;
-          }
-          img.onload = () => resolve();
-          img.onerror = () => resolve();
-        }),
-    );
+    const promises = urlsToPreload.map((url) => preloadCoverArt(url));
 
     Promise.all(promises).then(() => {
       if (active && !settled) {
@@ -123,41 +141,76 @@ function CollectionContent() {
   }, [loading, data, urlsToPreload]);
 
   const isReady = !loading && !!data && imagesLoaded;
+  const contentLayerRef = useRef<HTMLDivElement>(null);
+  const swapsInPlace = Boolean(preview?.title);
 
   useEffect(() => {
-    if (isReady && !skeletonExited) {
-      const timer = setTimeout(() => {
-        setSkeletonExited(true);
-      }, 250);
-      return () => clearTimeout(timer);
-    }
-  }, [isReady, skeletonExited]);
+    if (!isReady || skeletonExited) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const settle = () => {
+      const layer = contentLayerRef.current;
+      const shown =
+        !swapsInPlace ||
+        !layer ||
+        Number(getComputedStyle(layer).opacity) >= 0.99;
+      if (shown) setSkeletonExited(true);
+      else timer = setTimeout(settle, 120);
+    };
+    timer = setTimeout(settle, 250);
+    return () => clearTimeout(timer);
+  }, [isReady, skeletonExited, swapsInPlace]);
 
-  const playbackContext = id ? `${entityType}:${decodedId}` : (data?.title || null);
+  const playbackContext = id
+    ? `${entityType}:${decodedId}`
+    : data?.title || null;
+
+  const sort = useTrackSort(data?.tracks ?? NO_TRACKS, `${type}:${decodedId}`);
+  const sortedTracks = sort.sorted;
+  const search = useTrackSearch(sortedTracks, `${type}:${decodedId}`);
+  const visibleTracks = useMemo(
+    () =>
+      search.matches ?? sortedTracks.map((track, index) => ({ track, index })),
+    [search.matches, sortedTracks],
+  );
+  // album track numbers follow the release order, whatever the sort
+  const trackNumberById = useMemo(() => {
+    const map = new Map<string, number>();
+    (data?.tracks ?? NO_TRACKS).forEach((track, index) =>
+      map.set(track.id, index + 1),
+    );
+    return map;
+  }, [data?.tracks]);
+
+  const handleSearchSubmit = useCallback(() => {
+    const first = search.matches?.[0];
+    if (!data || !first) return;
+    playerEngine.playTrack(
+      first.track,
+      sortedTracks,
+      playbackContext,
+      data.coverUrl,
+    );
+  }, [search.matches, data, sortedTracks, playbackContext]);
 
   const { toast } = useToast();
   const [addedToQueue, setAddedToQueue] = useState(false);
 
   const handlePlayAll = () => {
-    if (!data || data.tracks.length === 0) return;
-    const [first] = data.tracks;
+    if (!data || sortedTracks.length === 0) return;
+    const [first] = sortedTracks;
     playerEngine.clearQueue();
-    playerEngine.playTrack(first, data.tracks, playbackContext, data.coverUrl);
+    playerEngine.playTrack(first, sortedTracks, playbackContext, data.coverUrl);
   };
 
   const handleShufflePlay = useCallback(() => {
     if (!data || data.tracks.length === 0) return;
     playerEngine.clearQueue();
-    void playerEngine.playShuffled(
-      data.tracks,
-      playbackContext,
-      data.coverUrl,
-    );
+    void playerEngine.playShuffled(data.tracks, playbackContext, data.coverUrl);
   }, [data, playbackContext]);
 
   const handleAddToQueue = useCallback(() => {
-    if (!data || data.tracks.length === 0) return;
-    for (const track of data.tracks) {
+    if (!data || sortedTracks.length === 0) return;
+    for (const track of sortedTracks) {
       playerEngine.addToQueue(track);
     }
     toast(t("collection.added_to_queue"), "info", {
@@ -168,7 +221,7 @@ function CollectionContent() {
       setAddedToQueue(false);
     }, 1200);
     return () => clearTimeout(timer);
-  }, [data, toast, t]);
+  }, [data, sortedTracks, toast, t]);
 
   const handleSaveToLibrary = () => {
     if (!data || !id) return;
@@ -202,56 +255,11 @@ function CollectionContent() {
   };
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const targetScrollTopRef = useRef<number | null>(null);
-  const rafIdRef = useRef<number | null>(null);
 
-  const handleTopWheel = useCallback((e: React.WheelEvent) => {
-    const container = scrollRef.current;
-    if (!container) return;
-
-    const maxScroll = container.scrollHeight - container.clientHeight;
-    if (maxScroll <= 0) return;
-
-    const current = targetScrollTopRef.current ?? container.scrollTop;
-    const target = Math.max(0, Math.min(maxScroll, current + e.deltaY));
-    targetScrollTopRef.current = target;
-
-    if (rafIdRef.current === null) {
-      const step = () => {
-        if (!scrollRef.current || targetScrollTopRef.current === null) {
-          rafIdRef.current = null;
-          return;
-        }
-        const now = scrollRef.current.scrollTop;
-        const diff = targetScrollTopRef.current - now;
-        if (Math.abs(diff) < 0.5) {
-          scrollRef.current.scrollTop = targetScrollTopRef.current;
-          targetScrollTopRef.current = null;
-          rafIdRef.current = null;
-          return;
-        }
-        scrollRef.current.scrollTop = now + diff * 0.25;
-        rafIdRef.current = requestAnimationFrame(step);
-      };
-      rafIdRef.current = requestAnimationFrame(step);
-    }
-  }, []);
-
+  // results start at the top, not wherever the full list was scrolled to
   useEffect(() => {
-    return () => {
-      if (rafIdRef.current !== null) {
-        cancelAnimationFrame(rafIdRef.current);
-      }
-    };
-  }, []);
-
-  const handleBack = useCallback(() => {
-    if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate("/library");
-    }
-  }, [navigate]);
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [search.activeQuery, sort.option]);
 
   if (!loading && !data) {
     return (
@@ -265,292 +273,308 @@ function CollectionContent() {
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-transparent">
-
-      <div className="absolute top-0 left-0 right-0 h-[56px] z-10 flex flex-row items-stretch select-none pointer-events-none">
-        <div
-          data-window-drag
-          onContextMenu={(e) => e.preventDefault()}
-          className="w-[328px] shrink-0 h-full pointer-events-auto"
-        />
-        <div
-          data-window-drag
-          onContextMenu={(e) => e.preventDefault()}
-          onWheel={handleTopWheel}
-          className="flex-1 min-w-0 h-full pointer-events-auto"
-        />
-      </div>
-      <button
-        type="button"
-        onClick={handleBack}
-        aria-label={t("common.back")}
-        data-no-tooltip="true"
-        data-no-window-drag
-        className={`absolute top-[12px] left-[32px] z-20 group inline-flex h-[32px] shrink-0 items-center gap-[6px] rounded-md px-[10px] active:scale-[0.94] transition-all cursor-pointer select-none pointer-events-auto text-[13px] font-[500] border-0 !border-none ${
-          hasCustomBg
-            ? "apple-glass-pill !border-none"
-            : "bg-bg-panel/85 backdrop-blur-xl text-text-primary hover:bg-bg-panel border-0 !border-none"
-        }`}
-        style={{ fontFamily: "var(--font-inter), sans-serif" }}
-      >
-        <ArrowLeftLine
-          size={16}
-          className="transition-transform duration-150 group-hover:-translate-x-0.5"
-        />
-        <span className="relative -left-[1.5px] top-[1px]">{t("common.back")}</span>
-      </button>
       <div className="relative z-1 grid grid-cols-1 w-full h-full min-h-0 overflow-hidden">
         {data && (
           <div
-            className={`col-start-1 row-start-1 w-full h-full min-h-0 overflow-hidden transition-opacity duration-200 ease-out ${
-              isReady ? "opacity-100" : "opacity-0 pointer-events-none"
-            }`}
+            className={`col-start-1 row-start-1 w-full h-full min-h-0 overflow-hidden ${
+              swapsInPlace
+                ? "relative z-20 transition-opacity duration-[180ms] ease-out"
+                : "transition-opacity duration-200 ease-out"
+            } ${isReady ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+            ref={contentLayerRef}
+            onTransitionEnd={(event) => {
+              if (
+                swapsInPlace &&
+                isReady &&
+                event.target === event.currentTarget
+              )
+                setSkeletonExited(true);
+            }}
           >
-            <div className="relative z-10 flex flex-row narrow:flex-col items-stretch gap-[16px] narrow:gap-0 pl-[32px] pr-[16px] narrow:px-[14px] h-full w-full min-h-0 box-border">
+            <div
+              ref={scrollRef}
+              data-no-window-drag
+              className="relative z-10 flex flex-col h-full w-full min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain box-border pt-(--page-inset-top) pb-(--page-inset-bottom)"
+              style={{ willChange: "scroll-position" }}
+            >
               <div
-                className="shrink-0 w-[280px] narrow:w-full short:w-[220px] self-start short:self-stretch short:h-full short:overflow-y-auto pt-[56px] narrow:pt-[52px] short:pt-[52px] pb-[24px] narrow:pb-[10px] short:pb-[16px]"
+                className="shrink-0 pl-[16px] pr-[12px] pt-[8px]"
                 data-no-window-drag
               >
-                <EntitySidebar
-                coverClassName={
-                  hasCustomBg && !data.coverUrl
-                    ? "apple-glass-static pointer-events-none"
-                    : undefined
-                }
-                cover={
-                  data.coverUrl ? (
-                    <CoverImage
-                      src={data.coverUrl}
-                      alt={data.title}
-                      fill
-                      sizes="280px"
-                      className="object-cover"
-                      draggable={false}
-                    />
-                  ) : (
-                    <PlaylistFill size={48} className={hasCustomBg ? "text-white" : "text-border-alpha-33"} />
-                  )
-                }
-
-                title={
-                  <h1 className={SIDEBAR_TITLE_CLASS}>{data.title}</h1>
-                }
-                subtitle={
-                  data.artists && data.artists.length > 0 ? (
-                    <p className={`${SIDEBAR_SUBTITLE_CLASS} flex items-center flex-wrap gap-x-[4px]`}>
-                      {data.artists.map((artist, i) => (
-                        <span key={artist.id || i} className="inline-flex items-center">
-                          {artist.id ? (
-                            <Link
-                              to={`/artist?id=${encodeURIComponent(artist.id)}`}
-                              className="text-text-secondary hover:text-text-primary transition-colors no-underline"
-                            >
-                              {artist.name}
-                            </Link>
-                          ) : (
-                            <span>{artist.name}</span>
-                          )}
-                          {i < data.artists!.length - 1 && (
-                            <span className="text-text-tertiary ml-[2px]">,</span>
-                          )}
-                        </span>
-                      ))}
-                    </p>
-                  ) : data.author ? (
-                    <p className={SIDEBAR_SUBTITLE_CLASS}>{data.author}</p>
-                  ) : data.description ? (
-                    <p className={SIDEBAR_SUBTITLE_CLASS}>{data.description}</p>
-                  ) : undefined
-                }
-                meta={
-                  <div className="flex items-center flex-wrap gap-[6px]">
-                    {data.year && (
-                      <div
-                        className={`inline-flex h-[26px] items-center gap-[5px] rounded-md px-[8px] text-[12px] font-[500] select-none ${
-                          hasCustomBg
-                            ? "apple-glass-pill"
-                            : "bg-bg-panel border border-border-primary/50 text-text-tertiary"
-                        }`}
-                      >
-                        <CalendarLine size={12} className={hasCustomBg ? "text-white shrink-0" : "text-text-tertiary shrink-0"} />
-                        <span>{data.year}</span>
-                      </div>
-                    )}
-
-                    <div
-                      className={`inline-flex h-[26px] items-center gap-[6px] rounded-md px-[8px] text-[12px] font-[400] select-none ${
-                        hasCustomBg
-                          ? "apple-glass-pill"
-                          : "bg-bg-panel border border-border-primary/40 text-text-tertiary"
-                      }`}
-                    >
-                      <MusicLine size={13} className={hasCustomBg ? "text-white shrink-0" : "text-text-tertiary shrink-0"} />
-                      <span>
-                        {data.tracks.length} {t("collection.tracks_count")}
-                      </span>
-                      <span
-                        className={`w-[3px] h-[3px] rounded-full shrink-0 ${hasCustomBg ? "bg-white/50" : "bg-text-tertiary/40"}`}
-                        aria-hidden
+                <EntityHero
+                  cover={
+                    data.coverUrl ? (
+                      isDailyMix ? (
+                        <DailyMixCover
+                          coverUrl={data.coverUrl}
+                          mixNumber={data.title.match(/\d+/)?.[0] ?? "1"}
+                          imageLoaded={imagesLoaded}
+                        />
+                      ) : (
+                        <CoverImage
+                          src={data.coverUrl}
+                          alt={data.title}
+                          fill
+                          sizes="180px"
+                          className="object-cover"
+                          draggable={false}
+                        />
+                      )
+                    ) : (
+                      <PlaylistFill
+                        size={48}
+                        className="text-border-alpha-33"
                       />
-                      <span>
-                        {(() => {
-                          const totalMs = data.tracks.reduce(
-                            (acc, t) => acc + (t.durationMs || 0),
-                            0,
-                          );
-                          const totalMins = Math.floor(totalMs / 60000);
-                          if (totalMins > 60) {
-                            return `${Math.floor(totalMins / 60)} ${t("collection.hr")} ${totalMins % 60} ${t("collection.min")}`;
-                          }
-                          const totalSecs = Math.floor((totalMs % 60000) / 1000);
-                          return `${totalMins} ${t("collection.min")} ${totalSecs} ${t("collection.sec")}`;
-                        })()}
-                      </span>
+                    )
+                  }
+
+                  title={<h1 className={HERO_TITLE_CLASS}>{data.title}</h1>}
+                  subtitle={
+                    data.artists && data.artists.length > 0 ? (
+                      <p
+                        className={`${HERO_SUBTITLE_CLASS} flex items-center flex-wrap gap-x-[4px]`}
+                      >
+                        {data.artists.map((artist, i) => (
+                          <span
+                            key={artist.id || i}
+                            className="inline-flex items-center"
+                          >
+                            {artist.id ? (
+                              <Link
+                                to={`/artist?id=${encodeURIComponent(artist.id)}`}
+                                className="text-text-secondary hover:text-text-primary transition-colors no-underline"
+                              >
+                                {artist.name}
+                              </Link>
+                            ) : (
+                              <span>{artist.name}</span>
+                            )}
+                            {i < data.artists!.length - 1 && (
+                              <span className="text-text-tertiary ml-[2px]">
+                                ,
+                              </span>
+                            )}
+                          </span>
+                        ))}
+                      </p>
+                    ) : data.author ? (
+                      <p className={HERO_SUBTITLE_CLASS}>{data.author}</p>
+                    ) : data.description ? (
+                      <p className={HERO_SUBTITLE_CLASS}>{data.description}</p>
+                    ) : undefined
+                  }
+                  meta={
+                    <div className="flex items-center flex-wrap gap-[6px]">
+                      {data.year && (
+                        <div className={HERO_CHIP_CLASS}>
+                          <span>{data.year}</span>
+                        </div>
+                      )}
+
+                      <div className={HERO_CHIP_CLASS}>
+                        <MusicLine
+                          size={13}
+                          className="text-text-secondary shrink-0"
+                        />
+                        <span>
+                          {data.tracks.length} {t("collection.tracks_count")}
+                        </span>
+                        <span
+                          className="w-[3px] h-[3px] rounded-full shrink-0 bg-text-secondary/50"
+                          aria-hidden
+                        />
+                        <span>
+                          {(() => {
+                            const totalMs = data.tracks.reduce(
+                              (acc, t) => acc + (t.durationMs || 0),
+                              0,
+                            );
+                            const totalMins = Math.floor(totalMs / 60000);
+                            if (totalMins > 60) {
+                              return `${Math.floor(totalMins / 60)} ${t("collection.hr")} ${totalMins % 60} ${t("collection.min")}`;
+                            }
+                            const totalSecs = Math.floor(
+                              (totalMs % 60000) / 1000,
+                            );
+                            return `${totalMins} ${t("collection.min")} ${totalSecs} ${t("collection.sec")}`;
+                          })()}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                }
-                  primaryAction={
-                    <div className="flex flex-col gap-[8px] w-full">
+                  }
+                  actions={
+                    <>
                       <Button
-                        variant={hasCustomBg ? "glass-primary" : "primary"}
+                        variant="primary"
                         onClick={handlePlayAll}
                         disabled={!data || data.tracks.length === 0}
-                        className="!h-[36px] w-full !text-[13.5px] !font-[500] px-[16px] flex items-center justify-center gap-[6px]"
+                        className={`${HERO_BUTTON_CLASS} px-[22px]`}
                       >
                         <PlayFill size={16} />
                         <span>{t("common.play_all")}</span>
                       </Button>
-
-                      <div className="flex items-center gap-[8px] w-full">
-                        <Button
-                          variant={hasCustomBg ? "glass-action" : "outline"}
-                          onClick={handleAddToQueue}
-                          disabled={!data || data.tracks.length === 0}
-                          className="!h-[36px] flex-1 min-w-0 !text-[13px] !font-[500] px-[12px] flex items-center justify-center gap-[6px]"
-                          title={t("common.add_to_queue")}
-                        >
-                          <AnimatePresence mode="wait">
-                            {addedToQueue ? (
-                              <motion.span
-                                key="check"
-                                initial={{ opacity: 0, scale: 0.5 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.5 }}
-                                transition={{ duration: 0.08 }}
-                                className="flex items-center justify-center text-emerald-400 shrink-0"
-                              >
-                                <CheckLine size={16} />
-                              </motion.span>
-                            ) : (
-                              <motion.span
-                                key="add"
-                                initial={{ opacity: 0, scale: 0.5 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.5 }}
-                                transition={{ duration: 0.08 }}
-                                className="flex items-center justify-center shrink-0"
-                              >
-                                <AddLine size={16} />
-                              </motion.span>
-                            )}
-                          </AnimatePresence>
-                          <span className="truncate">{t("common.add_to_queue")}</span>
-                        </Button>
-
-                        <Button
-                          variant={hasCustomBg ? "glass-action" : "outline"}
-                          onClick={handleShufflePlay}
-                          disabled={!data || data.tracks.length === 0}
-                          className="!h-[36px] !w-[36px] shrink-0 !p-0 flex items-center justify-center text-text-primary"
-                          title={t("common.shuffle")}
-                        >
-                          <LuShuffle size={16} />
-                        </Button>
-
-                        {!isDailyMix && (
-                          <DropdownMenu
-                            trigger={
-                              <Button
-                                variant={hasCustomBg ? "glass-action" : "outline"}
-                                className="!h-[36px] !w-[36px] shrink-0 !p-0 flex items-center justify-center text-text-primary"
-                                title={t("common.more")}
-                              >
-                                <More2Line size={18} />
-                              </Button>
-                            }
-                            items={[
-                              {
-                                id: "library",
-                                icon: inLibrary ? (
-                                  <FolderCheckFill size={16} />
-                                ) : (
-                                  <NewFolderLine size={16} />
-                                ),
-                                label: inLibrary
-                                  ? t("common.remove_from_library")
-                                  : t("common.save_to_library"),
-                                onClick: handleSaveToLibrary,
-                              },
-                              {
-                                id: "share",
-                                icon: <ShareForwardLine size={16} />,
-                                label: t("common.share"),
-                                onClick: handleShare,
-                              },
-                            ]}
-                          />
+                      <Button
+                        variant="secondary"
+                        onClick={handleShufflePlay}
+                        disabled={!data || data.tracks.length === 0}
+                        className={`${HERO_BUTTON_CLASS} ${HERO_GLASS_BUTTON_CLASS} !w-[52px] !p-0 text-text-primary`}
+                        title={t("common.shuffle")}
+                      >
+                        <LuShuffle size={18} />
+                      </Button>
+                    </>
+                  }
+                  trailingActions={
+                    <>
+                      <TrackSearchField
+                        search={search}
+                        totalCount={data.tracks.length}
+                        placeholder={t(
+                          isAlbum
+                            ? "track_search.placeholder_album"
+                            : "track_search.placeholder_playlist",
                         )}
-                      </div>
-                    </div>
+                        onSubmit={handleSearchSubmit}
+                        className={HERO_GLASS_CLASS}
+                      />
+                      <Button
+                        variant="secondary"
+                        onClick={handleAddToQueue}
+                        disabled={!data || data.tracks.length === 0}
+                        className={`${HERO_BUTTON_CLASS} ${HERO_GLASS_BUTTON_CLASS} px-[22px] ${
+                          // optical centring: with three icon buttons beside it the label reads 1px right
+                          !isDailyMix ? "[&>*]:-translate-x-px" : ""
+                        }`}
+                        title={t("common.add_to_queue")}
+                      >
+                        <AnimatePresence mode="wait">
+                          {addedToQueue ? (
+                            <motion.span
+                              key="check"
+                              initial={{ opacity: 0, scale: 0.5 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.5 }}
+                              transition={{ duration: 0.08 }}
+                              className="flex items-center justify-center text-emerald-400 shrink-0"
+                            >
+                              <CheckLine size={16} />
+                            </motion.span>
+                          ) : (
+                            <motion.span
+                              key="add"
+                              initial={{ opacity: 0, scale: 0.5 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.5 }}
+                              transition={{ duration: 0.08 }}
+                              className="flex items-center justify-center shrink-0"
+                            >
+                              <AddLine size={16} />
+                            </motion.span>
+                          )}
+                        </AnimatePresence>
+                        <span className="truncate">
+                          {t("common.add_to_queue")}
+                        </span>
+                      </Button>
+                      <TrackSortMenu
+                        sort={sort}
+                        disabled={!data || data.tracks.length < 2}
+                      />
+                      {!isDailyMix && (
+                        <DropdownMenu
+                          trigger={
+                            <Button
+                              variant="secondary"
+                              className={`${HERO_BUTTON_CLASS} ${HERO_GLASS_BUTTON_CLASS} !w-[52px] !p-0 text-text-primary`}
+                              title={t("common.more")}
+                            >
+                              <More1Fill size={20} />
+                            </Button>
+                          }
+                          items={[
+                            {
+                              id: "library",
+                              icon: inLibrary ? (
+                                <FolderCheckFill size={16} />
+                              ) : (
+                                <NewFolderLine size={16} />
+                              ),
+                              label: inLibrary
+                                ? t("common.remove_from_library")
+                                : t("common.save_to_library"),
+                              onClick: handleSaveToLibrary,
+                            },
+                            {
+                              id: "share",
+                              icon: <ShareForwardLine size={16} />,
+                              label: t("common.share"),
+                              onClick: handleShare,
+                            },
+                          ]}
+                        />
+                      )}
+                    </>
                   }
                 />
               </div>
 
               <div
-                ref={scrollRef}
-                data-no-window-drag
-                onScroll={() => {
-                  if (rafIdRef.current === null) {
-                    targetScrollTopRef.current = null;
-                  }
+                className={`grow shrink-0 mt-[20px] mx-[4px] rounded-t-[14px] bg-black/[0.03] dark:bg-white/[0.04] overflow-hidden px-[8px] pt-[8px] ${
+                  classicSurfaces ? "" : "backdrop-blur-xl"
+                }`}
+                style={{
+                  marginBottom: "calc(var(--page-inset-bottom) * -1)",
+                  paddingBottom: "calc(var(--page-inset-bottom) + 16px)",
                 }}
-                className="min-w-0 flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden px-[8px] narrow:px-0 pt-[56px] narrow:pt-0 pb-[24px] overscroll-contain"
-                style={{ willChange: "scroll-position" }}
               >
-              <section>
-                <div className="flex flex-col">
-                  {data.tracks.map((track, index) => (
-                    <SongCardWithMenu
-                      key={track.id}
-                      id={track.id}
-                      title={track.title}
-                      artists={track.artists}
-                      artistId={track.artistId}
-                      artistList={track.artistList}
-                      coverUrl={track.coverUrl || data.coverUrl}
-                      trackNumber={isAlbum ? index + 1 : undefined}
-                      duration={
-                        track.durationMs
-                          ? `${Math.floor(track.durationMs / 60000)}:${Math.floor(
-                              (track.durationMs % 60000) / 1000,
-                            )
-                              .toString()
-                              .padStart(2, "0")}`
-                          : undefined
-                      }
-                      durationMs={track.durationMs}
-                      explicit={track.explicit}
-                      onPlay={() =>
-                        playerEngine.playTrack(
-                          track,
-                          data.tracks,
-                          playbackContext,
-                          data.coverUrl,
-                        )
-                      }
+                <section>
+                  {search.matches && search.matches.length === 0 ? (
+                    <TrackSearchEmpty
+                      query={search.activeQuery}
+                      onClear={() => search.setQuery("")}
                     />
-                  ))}
-                </div>
-              </section>
+                  ) : (
+                    <div className="flex flex-col">
+                      {visibleTracks.map(({ track, index }) => (
+                        <SongCardWithMenu
+                          key={track.id}
+                          id={track.id}
+                          title={track.title}
+                          artists={track.artists}
+                          artistId={track.artistId}
+                          artistList={track.artistList}
+                          coverUrl={track.coverUrl || data.coverUrl}
+                          highlight={search.activeQuery || undefined}
+                          trackNumber={
+                            isAlbum
+                              ? (trackNumberById.get(track.id) ?? index + 1)
+                              : undefined
+                          }
+                          duration={
+                            track.durationMs
+                              ? `${Math.floor(track.durationMs / 60000)}:${Math.floor(
+                                  (track.durationMs % 60000) / 1000,
+                                )
+                                  .toString()
+                                  .padStart(2, "0")}`
+                              : undefined
+                          }
+                          durationMs={track.durationMs}
+                          explicit={track.explicit}
+                          hideArtists={isSingleArtistAlbum}
+                          onPlay={() =>
+                            playerEngine.playTrack(
+                              track,
+                              sortedTracks,
+                              playbackContext,
+                              data.coverUrl,
+                            )
+                          }
+                        />
+                      ))}
+                    </div>
+                  )}
+                </section>
               </div>
             </div>
           </div>
@@ -559,12 +583,18 @@ function CollectionContent() {
         {/* Direct Crossfade Skeleton Layer */}
         {!skeletonExited && (
           <div
-            className={`col-start-1 row-start-1 w-full h-full z-10 transition-opacity duration-200 ease-out overflow-hidden pointer-events-none ${
-              isReady ? "opacity-0" : "opacity-100"
+            className={`col-start-1 row-start-1 w-full h-full overflow-hidden pointer-events-none ${
+              swapsInPlace
+                ? "z-0"
+                : `z-10 transition-opacity duration-200 ease-out ${
+                    isReady ? "opacity-0" : "opacity-100"
+                  }`
             }`}
-            onTransitionEnd={() => setSkeletonExited(true)}
+            onTransitionEnd={(event) => {
+              if (event.target === event.currentTarget) setSkeletonExited(true);
+            }}
           >
-            <CollectionPageSkeleton isAlbum={isAlbum} />
+            <CollectionPageSkeleton isAlbum={isAlbum} preview={preview} />
           </div>
         )}
       </div>

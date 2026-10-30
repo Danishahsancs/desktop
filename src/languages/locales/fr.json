@@ -64,6 +64,9 @@
     "coming_soon": "Bientôt disponible",
     "play_all": "Tout lire",
     "add_to_queue": "Ajouter à la file d'attente",
+    "remove_from_queue": "Retirer de la file d'attente",
+    "removed_from_queue": "Retiré de la file d'attente",
+    "undo": "Annuler",
     "shuffle": "Lecture aléatoire",
     "remove_from_library": "Retirer de la bibliothèque",
     "save_to_library": "Enregistrer dans la bibliothèque",
@@ -188,7 +191,13 @@
     "songs_other": "{count} titres",
     "songs_plural": "{count} titres",
     "env_warning": "L'application doit être exécutée dans Electron : les liens profonds, les vérifications hors ligne et le partage nécessitent le pont de bureau.",
-    "env_skip": "Ignorer"
+    "env_skip": "Ignorer",
+    "minimize": "Réduire",
+    "exitFullscreen": "Quitter le plein écran",
+    "restore": "Restaurer",
+    "maximize": "Agrandir",
+    "add_to_library_desc": "Cet élément sera ajouté à votre bibliothèque.",
+    "failed_to_remove_library": "Impossible de retirer de la bibliothèque"
   },
   "home": {
     "speedDial": "Accès rapide",
@@ -202,6 +211,7 @@
     "mostListened": "Les plus écoutés de tous les temps",
     "jumpBackIn": "Reprendre l'écoute",
     "popularAlbums": "Top albums",
+    "mostSaved": "Les plus enregistrés",
     "popularArtists": "Artistes tendance",
     "popularPlaylists": "Playlists populaires",
     "dailyMixes": "Mix quotidiens",
@@ -214,9 +224,11 @@
     "songs": "titres",
     "track": "titre",
     "tracks": "titres",
+    "tab_all": "Tout",
     "tab_playlists": "Playlists",
     "tab_albums": "Albums",
     "tab_artists": "Artistes",
+    "search_all": "Rechercher dans la bibliothèque",
     "search_playlists": "Rechercher des playlists",
     "search_albums": "Rechercher des albums",
     "search_artists": "Rechercher des artistes",
@@ -234,7 +246,36 @@
     "no_albums_desc": "Enregistrez des albums depuis la recherche ou les recommandations pour les retrouver rapidement",
     "no_artists_title": "Aucun artiste enregistré",
     "no_artists_desc": "Enregistrez des artistes pour accéder rapidement à leur discographie",
-    "search_music": "Rechercher de la musique"
+    "search_music": "Rechercher de la musique",
+    "local": {
+      "title": "Sur cet appareil",
+      "subtitle": "Vos propres fichiers audio. Ils restent sur cet ordinateur et ne sont jamais envoyés à YouTube ou aux serveurs de Liner.",
+      "add_files": "Ajouter des fichiers",
+      "importing": "Ajout en cours…",
+      "empty_title": "Aucun fichier local pour le moment",
+      "empty_subtitle": "Ajoutez des fichiers MP3, FLAC, M4A, OGG, OPUS ou WAV, ou glissez-les n'importe où dans la fenêtre.",
+      "drop_title": "Déposer pour ajouter à Liner",
+      "drop_subtitle": "Les fichiers sont copiés uniquement sur cet appareil",
+      "drop_count_one": "{count} fichier",
+      "drop_count_many": "{count} fichiers",
+      "drop_count_other": "{count} fichiers",
+      "imported_one": "{count} titre ajouté",
+      "imported_many": "{count} titres ajoutés",
+      "imported_other": "{count} titres ajoutés",
+      "skipped_duplicates_one": "{count} était déjà ajouté",
+      "skipped_duplicates_many": "{count} étaient déjà ajoutés",
+      "skipped_duplicates_other": "{count} étaient déjà ajoutés",
+      "already_added": "Ces fichiers sont déjà ajoutés",
+      "import_failed_one": "Impossible d'ajouter {count} fichier",
+      "import_failed_many": "Impossible d'ajouter {count} fichiers",
+      "import_failed_other": "Impossible d'ajouter {count} fichiers",
+      "unsupported": "Ces fichiers ne sont pas des formats audio pris en charge",
+      "remove": "Supprimer de l'appareil",
+      "remove_all": "Tout supprimer",
+      "remove_all_title": "Supprimer toute la musique locale ?",
+      "remove_all_desc": "{tracks} ({size}) seront supprimés de Liner, avec leurs pochettes et leurs paroles. Vos fichiers d'origine restent à leur place.",
+      "removed_all": "Musique locale supprimée"
+    }
   },
   "login": {
     "welcome_back": "Bon retour",
@@ -245,7 +286,6 @@
     "auth_subtitle_register": "Créez un compte et commencez à construire votre bibliothèque personnelle.",
     "profile_setup_title": "Configurez votre profil",
     "profile_setup_subtitle": "Choisissez votre identifiant unique et votre nom affiché.",
-    "step_indicator": "Étape {step} sur {total}",
     "btn_continue": "Continuer",
     "btn_back": "Retour",
     "username_hint": "3 à 30 caractères : lettres minuscules, chiffres ou tirets bas.",
@@ -344,6 +384,13 @@
     }
   },
   "player": {
+    "mute": "Couper le son",
+    "unmute": "Rétablir le son",
+    "decrease": "Diminuer",
+    "increase": "Augmenter",
+    "repeat_off": "Répéter : désactivé",
+    "repeat_all": "Répéter : tout",
+    "repeat_one": "Répéter : titre",
     "nothing_playing": "Aucune lecture en cours",
     "choose_track": "Choisissez un titre dans la recherche",
     "queue": "File d'attente",
@@ -374,6 +421,8 @@
     "track_unavailable": "« {title} » est indisponible, passage au suivant...",
     "track_unavailable_title": "Titre indisponible",
     "playback_stopped_too_many_errors": "Lecture arrêtée : trop de titres n'ont pas pu être chargés.",
+    "youtube_refused_title": "YouTube refuse cette connexion",
+    "youtube_refused_description": "L'audio de YouTube est bloqué sur ce réseau. Désactivez votre VPN ou proxy, ou essayez une autre connexion.",
     "speed_pitch": "Vitesse et tonalité",
     "speed": "Vitesse",
     "pitch": "Tonalité",
@@ -390,7 +439,92 @@
     "preset_nightcore": "1.35x Nightcore",
     "reverb": "Réverbération",
     "reverb_hint": "Espace atmosphérique et profondeur d'ambiance",
-    "reverb_amount": "Réverbération"
+    "reverb_amount": "Réverbération",
+    "volume": "Volume",
+    "previous": "Précédent",
+    "open_player": "Ouvrir le lecteur",
+    "next": "Suivant",
+    "repeat": "Répéter",
+    "equalizer": "Égaliseur",
+    "equalizer_hint": "Ajuster le son bande par bande",
+    "eq_tab_enhance": "Amélioration",
+    "eq_tab_genre": "Genres",
+    "eq_tab_accent": "Accents",
+    "eq_tab_custom": "Perso",
+    "eq_save_preset": "Enregistrer actuel",
+    "eq_presets_full": "Limite de présets atteinte",
+    "eq_custom_empty": "Ajustez les bandes et enregistrez la courbe pour la réutiliser plus tard",
+    "eq_preset_name": "Nom du préset",
+    "eq_delete_preset": "Supprimer le préset",
+    "eq_preset_hifi": "Hi-Fi",
+    "eq_preset_hifi_hint": "Basses plus riches et plus d'air, médiums préservés",
+    "eq_preset_clarity": "Clarté",
+    "eq_preset_clarity_hint": "Élimine le flou des bas-médiums, meilleure séparation des instruments",
+    "eq_preset_warmth": "Chaleur",
+    "eq_preset_warmth_hint": "Chaleur analogique, adoucit les masters trop brillants",
+    "eq_preset_spacious": "Spatial",
+    "eq_preset_spacious_hint": "Scène sonore plus large et ouverte",
+    "eq_preset_headphones": "Casque",
+    "eq_preset_headphones_hint": "Comble les creux typiques des casques dans les sous-basses et hauts-médiums",
+    "eq_preset_laptop": "Ordinateur portable",
+    "eq_preset_laptop_hint": "Pour petits haut-parleurs : pas de sous-basses inutiles, plus de corps",
+    "eq_preset_night": "Nuit",
+    "eq_preset_night_hint": "Écoute silencieuse : moins de résonance et de sifflements, voix claires",
+    "eq_preset_pop": "Pop",
+    "eq_preset_pop_hint": "Médiums mis en avant et aigus soignés",
+    "eq_preset_rock": "Rock",
+    "eq_preset_rock_hint": "Batterie percutante et guitares incisives",
+    "eq_preset_hiphop": "Hip-Hop",
+    "eq_preset_hiphop_hint": "808 puissantes avec voix maintenues au premier plan",
+    "eq_preset_electronic": "Électronique",
+    "eq_preset_electronic_hint": "Kick profond et synthés précis",
+    "eq_preset_jazz": "Jazz",
+    "eq_preset_jazz_hint": "Contrebasse chaleureuse et cymbales aérées",
+    "eq_preset_classical": "Classique",
+    "eq_preset_classical_hint": "Son naturel de salle de concert, extension douce aux deux extrémités",
+    "eq_preset_acoustic": "Acoustique",
+    "eq_preset_acoustic_hint": "Corps boisé et détails des cordes",
+    "eq_preset_lofi": "Lo-Fi",
+    "eq_preset_lofi_hint": "Aigus atténués et texturés comme une vieille cassette",
+    "eq_preset_bass": "Basses",
+    "eq_preset_bass_hint": "Plus de bas du spectre",
+    "eq_preset_deep_bass": "Sous-basses",
+    "eq_preset_deep_bass_hint": "Sous-basses maximales",
+    "eq_preset_less_bass": "Moins de basses",
+    "eq_preset_less_bass_hint": "Réduit les résonances sur les morceaux ou enceintes très chargés en basses",
+    "eq_preset_vocal": "Voix",
+    "eq_preset_vocal_hint": "Met les voix en avant",
+    "eq_preset_treble": "Aigus",
+    "eq_preset_treble_hint": "Plus d'aigus et de détails",
+    "eq_preset_loudness": "Loudness",
+    "eq_preset_loudness_hint": "Basses et aigus accentués pour écoute à faible volume",
+    "eq_preset_punch": "Punch",
+    "eq_preset_punch_hint": "Mix plus percutant avec kick serré et attaque nette",
+    "eq_preset_smooth": "Doux",
+    "eq_preset_smooth_hint": "Adoucit les aigus agressifs pour une écoute prolongée",
+    "eq_preset_rnb": "R&B",
+    "eq_preset_rnb_hint": "Voix soyeuses sur des basses rondes et chaleureuses",
+    "beta_visuals": {
+      "label": "Attention",
+      "ambient_title": "Ambient est en bêta",
+      "ambient_body": "Ce titre a son propre fond animé. Il est encore en bêta et peut solliciter les appareils modestes : choisis un mode plus léger si le lecteur saccade.",
+      "settings_title": "Qualité visuelle",
+      "settings_body": "Choisis à quel point le lecteur plein écran s’anime. Les modes légers économisent la batterie et sont plus fluides sur les appareils modestes.",
+      "modes": {
+        "full": {
+          "name": "Tous les effets",
+          "hint": "Tout activé, bords des paroles floutés compris"
+        },
+        "balanced": {
+          "name": "Équilibré",
+          "hint": "Fonds animés, sans flou sur les paroles"
+        },
+        "lite": {
+          "name": "Léger",
+          "hint": "Pochette fixe, paroles simples"
+        }
+      }
+    }
   },
   "playlist": {
     "playlist": "Playlist",
@@ -408,7 +542,8 @@
     "min": "min",
     "sec": "s",
     "empty_title": "Cette playlist est vide",
-    "empty_subtitle": "Recherchez des titres à ajouter"
+    "empty_subtitle": "Recherchez des titres à ajouter",
+    "likes_empty": "Aucun titre aimé pour l'instant"
   },
   "search": {
     "placeholder": "Rechercher des titres, artistes, albums...",
@@ -428,6 +563,9 @@
     "save_preferences": "Enregistrer les préférences",
     "groups": {
       "preferences": "Préférences",
+      "player": "Lecteur",
+      "interface": "Interface",
+      "integrations": "Intégrations",
       "application": "Application",
       "help": "Aide"
     },
@@ -437,8 +575,6 @@
     "tabs": {
       "general": "Général",
       "appearance": "Apparence",
-      "customization": "Personnalisation",
-      "audio": "Audio",
       "storage": "Cache et stockage",
       "system": "Système",
       "account": "Compte",
@@ -446,7 +582,9 @@
       "playback": "Lecture",
       "shortcuts": "Raccourcis",
       "overlay": "Overlay",
-      "privacy": "Confidentialité"
+      "privacy": "Confidentialité",
+      "discord": "Discord RPC",
+      "youtube": "YouTube"
     },
     "playback": {
       "description": "Comportement de la file d'attente, actions au clic et sortie audio."
@@ -483,8 +621,6 @@
       "search_desc": "Ouvre rapidement la recherche.",
       "toggle_queue": "File d'attente",
       "toggle_queue_desc": "Ouvre ou ferme le panneau de la file d'attente.",
-      "toggle_lyrics": "Paroles",
-      "toggle_lyrics_desc": "Ouvre ou ferme le panneau des paroles synchronisées.",
       "toggle_fullscreen": "Plein écran / Vue lecteur",
       "toggle_fullscreen_desc": "Active ou désactive la vue immersive du lecteur en plein écran.",
       "like_track": "J'aime / Je n'aime plus",
@@ -539,45 +675,6 @@
         "description": "Garde l'overlay au-dessus des autres fenêtres."
       }
     },
-    "customization": {
-      "description": "Fond d'écran de la fenêtre, transparence et flou des blocs.",
-      "apply_to_overlay": "Appliquer au mini-lecteur en overlay",
-      "apply_to_overlay_desc": "Utilise le fond personnalisé et l'effet verre sur le mini-lecteur flottant.",
-      "dark_theme_only": "La personnalisation n'est disponible qu'avec le thème sombre",
-      "wallpaper_title": "Fond d'écran de la fenêtre",
-      "wallpaper_description": "Définissez une image ou un GIF animé comme fond de toute la fenêtre.",
-      "upload_title": "Choisir une image ou un GIF animé",
-      "upload_hint": "PNG, JPEG, GIF, WebP (jusqu'à 30 Mo)",
-      "change_button": "Changer",
-      "remove_button": "Retirer",
-      "wallpaper_blur": "Flou du fond d'écran",
-      "wallpaper_dim": "Assombrissement du fond d'écran",
-      "blocks_title": "Effet verre des blocs de l'interface",
-      "blocks_description": "Réglez la transparence, le flou d'arrière-plan et l'assombrissement de chaque zone de l'interface.",
-      "block_sidebar": "Barre latérale",
-      "block_content": "Zone de contenu",
-      "block_miniplayer": "Mini-lecteur",
-      "opacity": "Opacité (transparence)",
-      "opacity_desc": "Niveau d'opacité du fond (25 % min.)",
-      "blur": "Flou d'arrière-plan",
-      "blur_desc": "Intensité de l'effet verre dépoli",
-      "dim": "Assombrissement",
-      "dim_desc": "Voile sombre pour une meilleure lisibilité",
-      "apply_all": "À tous",
-      "apply_all_title": "Appliquer les réglages à tous les blocs",
-      "applied_to_all": "Réglages appliqués à tous les blocs",
-      "reset_block": "Réinitialiser",
-      "block_reset": "Réglages du bloc réinitialisés",
-      "reset_all": "Réinitialiser toute la personnalisation",
-      "reset_all_desc": "Rétablit l'apparence par défaut, retire l'image de fond et les effets verre des blocs.",
-      "all_reset": "Personnalisation réinitialisée",
-      "applied": "Fond d'écran appliqué",
-      "removed": "Fond d'écran retiré",
-      "invalid_file_type": "Choisissez une image ou un fichier GIF",
-      "file_too_large": "Le fichier doit faire moins de 30 Mo",
-      "read_error": "Impossible de lire le fichier image"
-    },
-
     "audio_data": {
       "description": "Qualité du streaming, cache hors ligne et diagnostic de connexion."
     },
@@ -674,13 +771,16 @@
         "covers": "Pochettes",
         "audio": "Pistes audio",
         "lyrics": "Paroles",
-        "metadata": "Catalogue et recherche"
-      }
+        "metadata": "Catalogue et recherche",
+        "local": "Musique locale"
+      },
+      "local_confirm_title": "Supprimer aussi votre musique locale ?",
+      "local_confirm_desc": "La musique locale est votre bibliothèque importée, pas du cache. {tracks} ({size}) seront supprimés de Liner, avec leurs pochettes et leurs paroles. Vos fichiers d'origine restent à leur place.",
+      "local_confirm_button": "Supprimer la musique locale"
     },
     "theme": {
       "title": "Thème",
       "description": "Choisissez l'apparence générale de l'application.",
-      "disabled_for_glass": "Le thème clair est désactivé avec l'effet verre et un fond d'écran personnalisé.",
       "light": "Clair",
       "dark": "Sombre",
       "system": "Système"
@@ -703,8 +803,6 @@
       "vhs": "Chrome"
     },
     "audio": {
-      "title": "Qualité du streaming",
-      "description": "Choisissez la qualité audio par défaut pour la lecture.",
       "pause_on_device_change": {
         "title": "Pause au changement de périphérique",
         "description": "Met automatiquement la lecture en pause quand la sortie audio change."
@@ -712,11 +810,7 @@
       "download_current_song": {
         "title": "Télécharger le titre en cours",
         "description": "Télécharge le titre en cours de lecture au format MP3."
-      },
-      "low": "Qualité basse (économie de données)",
-      "standard": "Qualité standard (Opus 64kbps / MP3 128kbps)",
-      "high": "Haute qualité (AAC 256kbps)",
-      "lossless": "Sans perte (FLAC/ALAC) - Indisponible"
+      }
     },
     "profile": {
       "title": "Profil",
@@ -777,7 +871,7 @@
     "about": {
       "liner": "Liner",
       "telegram": "Chaîne",
-      "support": "Assistance",
+      "discord": "Discord",
       "github": "GitHub",
       "website": "Site web",
       "tagline": "Lecteur de streaming musical moderne pour ordinateur, avec des paroles synchronisées à la syllabe",
@@ -811,16 +905,78 @@
       "license_notice": "Distribué sous la licence Liner Source-Available & Non-Commercial."
     },
     "connection": {
-      "title": "Connexion",
-      "description": "Lancez tous les tests de connectivité et enregistrez le rapport hors ligne.",
-      "checks_title": "Rapport hors ligne",
-      "button": "Lancer les tests et enregistrer",
-      "checking": "Vérification…",
-      "saved": "Rapport enregistré, joignez-le à votre message pour l'assistance.",
-      "failed": "Impossible d'enregistrer le rapport.",
-      "never_run": "Les tests n'ont pas encore été lancés.",
-      "last_run": "{ok}/{total} tests réussis · {time}",
       "open_folder": "Ouvrir l'emplacement"
+    },
+    "youtube": {
+      "description": "Connectez-vous à votre compte YouTube pour éviter les erreurs de lecture.",
+      "section_playback": "Lecture",
+      "account_playback": {
+        "title": "Lire via votre compte",
+        "description": "Demande l'audio YouTube avec votre compte connecté pour éviter que les flux ne soient bloqués."
+      },
+      "prompt_sign_in": {
+        "title": "Demander à se connecter",
+        "description": "Affiche la carte de connexion lorsque YouTube bloque la lecture au lieu de passer le titre."
+      },
+      "sync_library": {
+        "title": "Synchroniser la bibliothèque",
+        "description": "Affiche les playlists de votre compte YouTube dans la bibliothèque à côté des playlists Liner."
+      },
+      "sign_out": "Se déconnecter",
+      "sign_in": "Se connecter",
+      "signed_out_title": "Non connecté",
+      "signed_out_description": "Connectez-vous pour maintenir le bon fonctionnement de la lecture YouTube",
+      "section_account": "Compte"
+    },
+    "discord": {
+      "description": "Affichez ce que vous écoutez sur Discord avec la pochette de l'album, le badge de l'artiste et la barre de progression.",
+      "section_display": "Options d'affichage",
+      "section_buttons": "Boutons du profil",
+      "enable": {
+        "title": "Discord Rich Presence",
+        "description": "Diffusez votre écoute musicale en cours sur votre profil Discord."
+      },
+      "status_display": {
+        "title": "Format du statut",
+        "description": "Choisissez ce qui apparaît dans l'en-tête du statut « Écoute... » sur Discord.",
+        "artist": "Artiste (Par défaut)",
+        "song": "Titre du morceau",
+        "artist_song": "Artiste - Titre",
+        "song_artist": "Titre - Artiste",
+        "app": "Liner (Nom de l'application)"
+      },
+      "show_timeline": {
+        "title": "Barre de progression",
+        "description": "Affiche une barre de progression interactive avec le temps écoulé et restant."
+      },
+      "show_artwork": {
+        "title": "Pochette du titre",
+        "description": "Affiche la pochette du titre ou de l'album sur la carte d'activité Discord."
+      },
+      "show_artist_image": {
+        "title": "Badge photo de l'artiste",
+        "description": "Affiche la photo de l'artiste dans un petit badge circulaire au coin inférieur."
+      },
+      "show_paused": {
+        "title": "Afficher en pause",
+        "description": "Garde le statut visible sur Discord avec un indicateur de pause lorsque la musique est en pause."
+      },
+      "show_button": {
+        "title": "Bouton « Écouter sur Liner »",
+        "description": "Ajoute un bouton interactif renvoyant vers le titre sur Liner."
+      },
+      "show_download_button": {
+        "title": "Bouton « Télécharger Liner »",
+        "description": "Ajoute un bouton interactif renvoyant vers tryliner.fun pour télécharger l'application."
+      },
+      "status": {
+        "connected": "Connecté à Discord ({user})",
+        "disconnected": "Discord non connecté",
+        "ready": "Prêt",
+        "waiting": "En attente de Discord",
+        "disabled": "Désactivé",
+        "via_arrpc": "Connecté via arRPC"
+      }
     }
   },
   "toast": {
@@ -945,12 +1101,7 @@
     "check_trace": "Traçage de la route",
     "check_platform": "Plateforme",
     "check_main": "Tests de l'application",
-    "copy_dump": "Copier le rapport",
-    "dump_copied": "Rapport copié, collez-le dans votre message pour l'assistance.",
-    "dump_copy_failed": "Impossible d'accéder au presse-papiers.",
-    "download_dump": "Enregistrer le rapport",
-    "support": "Contacter l'assistance",
-    "support_hint": "Joignez le fichier du rapport pour que l'assistance ait une vue d'ensemble."
+    "support": "Contacter l'assistance"
   },
   "updater": {
     "modal_title": "Nouvelle mise à jour disponible",
@@ -963,5 +1114,31 @@
     "downloaded_desc": "Redémarrez Liner pour installer la version {version}.",
     "install_button": "Installer",
     "error_title": "Échec de la mise à jour"
+  },
+  "track_search": {
+    "placeholder_playlist": "Rechercher dans la playlist",
+    "placeholder_album": "Rechercher dans l’album",
+    "count": "{count} sur {total}",
+    "no_results": "Aucun titre ne correspond à « {query} »",
+    "clear": "Effacer la recherche"
+  },
+  "track_sort": {
+    "label": "Trier",
+    "default": "Par défaut",
+    "added": "Par date d'ajout",
+    "title": "Par titre (A–Z)",
+    "duration": "Par durée",
+    "popularity": "Par popularité"
+  },
+  "youtube_auth": {
+    "title": "Connectez-vous à YouTube pour continuer à écouter",
+    "description": "YouTube bloque les flux audio sans connexion (vérification BotGuard). Vous connecter avec votre compte Google/YouTube confirme que vous êtes un véritable auditeur et lève les restrictions.",
+    "waiting": "En attente de connexion…",
+    "retry": "Réessayer",
+    "not_now": "Pas maintenant",
+    "or_enter_code": "ou saisissez le code sur",
+    "copy_code": "Copier le code",
+    "connected": "YouTube connecté",
+    "qr_label": "Code QR de connexion"
   }
 }

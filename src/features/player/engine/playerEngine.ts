@@ -6,7 +6,9 @@ import {
   type PlayerState,
 } from "../store/playerStore";
 import { playerRuntime } from "./playerRuntime";
+import { isRadioContext, shouldRefillRadio } from "./radioMode";
 import { pitchShifter } from "./pitchShifter";
+import { EQ_MAX_CUSTOM_PRESETS, EQ_PRESET_NAME_MAX } from "./equalizer";
 import {
   api,
   type ApiRadioTrack,
@@ -22,15 +24,28 @@ import {
   useLyricsStore,
   lyricsCache,
   shouldCacheLyricsCandidate,
+  isProvisionalLyricsCandidate,
   compareLyricsCandidates,
   isBetterLyricsCandidate,
   type CachedLyricsItem,
 } from "@/features/lyrics";
 import { preloadCoverArt } from "@/features/covers";
 import { linerDb, type CachedLyricsRecord } from "@/shared/storage";
+import { debouncedStorage } from "@/shared/utils/storage";
 import { showToast } from "@/shared/ui";
 import { createTranslatorSync, getStoredLocale } from "@/languages";
 import type { Track } from "@/shared/types";
+import { isLocalTrackId, localFileId } from "@/shared/media/local";
+import { readSavedLyrics } from "@/shared/media/saved";
+import {
+  LOCAL_LYRICS_UPDATED,
+  readStoredLocalLyrics,
+  isLyricsCandidate,
+} from "@/features/library/local/lyrics/localLyricsQueue";
+import { loadAmbientScript } from "@/shared/media/ambient";
+import { STREAMS_REFUSED_MESSAGE } from "@/shared/youtube";
+import { OFFLINE_UNAVAILABLE_MESSAGE } from "@/features/connectivity/store/offlineModeStore";
+import { noteYoutubeTrouble } from "@/features/connectivity/engine/offlineController";
 
 const MAX_CONSECUTIVE_AUTO_SKIPS = 3;
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -46,7 +61,10 @@ function shuffleArray<T>(array: T[]): T[] {
   return result;
 }
 
-function restoreOriginalRelativeOrder<T>(currentUpcoming: T[], referenceList: T[]): T[] {
+function restoreOriginalRelativeOrder<T>(
+  currentUpcoming: T[],
+  referenceList: T[],
+): T[] {
   if (referenceList.length === 0) return currentUpcoming;
   const originalPosMap = new Map<unknown, number>();
   referenceList.forEach((item: unknown, idx) => {
@@ -59,13 +77,19 @@ function restoreOriginalRelativeOrder<T>(currentUpcoming: T[], referenceList: T[
   return [...currentUpcoming].sort((a: unknown, b: unknown) => {
     const keyA = (a as { id?: string })?.id ?? a;
     const keyB = (b as { id?: string })?.id ?? b;
-    const posA = originalPosMap.has(keyA) ? originalPosMap.get(keyA)! : Number.MAX_SAFE_INTEGER;
-    const posB = originalPosMap.has(keyB) ? originalPosMap.get(keyB)! : Number.MAX_SAFE_INTEGER;
+    const posA = originalPosMap.has(keyA)
+      ? originalPosMap.get(keyA)!
+      : Number.MAX_SAFE_INTEGER;
+    const posB = originalPosMap.has(keyB)
+      ? originalPosMap.get(keyB)!
+      : Number.MAX_SAFE_INTEGER;
     return posA - posB;
   });
 }
 
-function parsePlaybackContext(context: string | null): PlaybackContext | undefined {
+function parsePlaybackContext(
+  context: string | null,
+): PlaybackContext | undefined {
   if (!context) return undefined;
   if (context.includes(":")) {
     const [type, ...rest] = context.split(":");
@@ -76,6 +100,10 @@ function parsePlaybackContext(context: string | null): PlaybackContext | undefin
 
 // fresh station instance id so the backend can tell paginated waves apart
 // even when seed + history windows coincide
+function continuesWithSimilar(state: PlayerState): boolean {
+  return state.autoplaySimilar && state.repeat === "off";
+}
+
 function newRadioWaveId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
@@ -86,8 +114,13 @@ function newRadioWaveId(): string {
 type LyricsHint = { title: string; artist: string; durationMs?: number };
 
 function lyricsHint(track: Track): LyricsHint {
-  const artist = track.artistList?.[0]?.name || track.artists.split(",")[0] || "";
-  return { title: track.title, artist: artist.trim(), durationMs: track.durationMs };
+  const artist =
+    track.artistList?.[0]?.name || track.artists.split(",")[0] || "";
+  return {
+    title: track.title,
+    artist: artist.trim(),
+    durationMs: track.durationMs,
+  };
 }
 
 class PlaybackTelemetryTracker {
@@ -107,7 +140,10 @@ class PlaybackTelemetryTracker {
 
   private getOrCreateListeningSession(): string {
     const now = Date.now();
-    if (!this.listeningSessionId || now - this.lastActivityTime > this.SESSION_TIMEOUT_MS) {
+    if (
+      !this.listeningSessionId ||
+      now - this.lastActivityTime > this.SESSION_TIMEOUT_MS
+    ) {
       this.listeningSessionId =
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
@@ -190,37 +226,57 @@ class PlaybackTelemetryTracker {
     }
   }
 
-  public flushCurrentTrack() {
-    if (!this.activeTrackId) return;
+  public flushCurrentTrack(): Promise<void> {
+    if (!this.activeTrackId) return Promise.resolve();
     this.onPausedOrStopped();
+    let reported: Promise<void> = Promise.resolve();
 
-    const durationMs = this.trackDurationMs > 0 ? this.trackDurationMs : this.playedDurationMs;
-    const rawRate = durationMs > 0 ? this.playedDurationMs / durationMs : this.completed ? 1.0 : 0.0;
+    const durationMs =
+      this.trackDurationMs > 0 ? this.trackDurationMs : this.playedDurationMs;
+    const rawRate =
+      durationMs > 0
+        ? this.playedDurationMs / durationMs
+        : this.completed
+          ? 1.0
+          : 0.0;
     const completionRate = Math.min(1.0, Math.max(0.0, rawRate));
     const isSkipped = !this.completed && this.playedDurationMs < 30000;
 
-    if (this.playedDurationMs >= 3000 || this.completed) {
+    if (
+      (this.playedDurationMs >= 3000 || this.completed) &&
+      !isLocalTrackId(this.activeTrackId)
+    ) {
       const snap = this.activeTrack;
       const artistsList = snap?.artistList?.length
         ? snap.artistList.map((a) => ({ id: a.id || "unknown", name: a.name }))
-        : (snap?.artists
-            ? snap.artists.split(",").map((name) => ({ id: snap?.artistId || "unknown", name: name.trim() }))
-            : [{ id: "unknown", name: "Unknown Artist" }]);
+        : snap?.artists
+          ? snap.artists.split(",").map((name) => ({
+              id: snap?.artistId || "unknown",
+              name: name.trim(),
+            }))
+          : [{ id: "unknown", name: "Unknown Artist" }];
 
-      this.sendEvent({
+      reported = this.sendEvent({
         playbackSessionId: this.playbackSessionId,
         listeningSessionId: this.getOrCreateListeningSession(),
         trackId: this.activeTrackId,
-        trackSnapshot: snap ? {
-          id: snap.id,
-          title: snap.title || "Unknown Track",
-          artists: artistsList,
-          album: snap.album ? { id: snap.album.id || "", title: snap.album.title || "" } : undefined,
-          cover: snap.coverUrl ? { url: snap.coverUrl, width: 512, height: 512 } : undefined,
-          durationMs: snap.durationMs || this.trackDurationMs,
-        } : undefined,
+        trackSnapshot: snap
+          ? {
+              id: snap.id,
+              title: snap.title || "Unknown Track",
+              artists: artistsList,
+              album: snap.album
+                ? { id: snap.album.id || "", title: snap.album.title || "" }
+                : undefined,
+              cover: snap.coverUrl
+                ? { url: snap.coverUrl, width: 512, height: 512 }
+                : undefined,
+              durationMs: snap.durationMs || this.trackDurationMs,
+            }
+          : undefined,
         playedDurationMs: Math.round(this.playedDurationMs),
-        trackDurationMs: this.trackDurationMs > 0 ? this.trackDurationMs : undefined,
+        trackDurationMs:
+          this.trackDurationMs > 0 ? this.trackDurationMs : undefined,
         completionRate: Number(completionRate.toFixed(4)),
         completed: this.completed,
         skipped: isSkipped,
@@ -238,16 +294,20 @@ class PlaybackTelemetryTracker {
     this.completed = false;
     this.loopCount = 0;
     this.hasSeekBackward = false;
+    return reported;
   }
 
-  private sendEvent(payload: RecordPlaybackEventRequest) {
-    void api.recordPlaybackEvent(payload).catch((err) => {
-      log(
-        "yellow",
-        "telemetry",
-        `playback event report failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    });
+  private sendEvent(payload: RecordPlaybackEventRequest): Promise<void> {
+    return api.recordPlaybackEvent(payload).then(
+      () => undefined,
+      (err) => {
+        log(
+          "yellow",
+          "telemetry",
+          `playback event report failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      },
+    );
   }
 }
 
@@ -261,7 +321,10 @@ class PlayerEngine {
   private telemetry = new PlaybackTelemetryTracker();
   private radioAppendTimeout: ReturnType<typeof setTimeout> | null = null;
   private radioWaveId: string | null = null;
+  // single in-flight similar-tracks request, so a refill and an end-of-queue wait share it
+  private radioFetchInFlight: Promise<void> | null = null;
   private consecutiveAutoSkips = 0;
+  private consecutiveOfflineSkips = 0;
   private lastPreloadKey: string | null = null;
   private inFlightLyricsPrefetches = new Map<string, Promise<void>>();
 
@@ -269,6 +332,16 @@ class PlayerEngine {
     usePlayerStore.setState({
       dispatch: this.dispatch.bind(this),
     });
+
+    if (typeof window !== "undefined") {
+      window.addEventListener(LOCAL_LYRICS_UPDATED, (event) => {
+        const trackId = (event as CustomEvent<{ trackId?: string }>).detail
+          ?.trackId;
+        if (!trackId || this.currentLyricsTrackId !== trackId) return;
+        this.currentLyricsTrackId = null;
+        void this.fetchLyricsForTrack(usePlayerStore.getState().currentTrack);
+      });
+    }
 
     if (playerRuntime) {
       playerRuntime.onEnded = () => {
@@ -299,7 +372,10 @@ class PlayerEngine {
           newTrack = true;
           this.lastPreloadKey = null;
           if (state.currentTrack) {
-            this.telemetry.startTrack(state.currentTrack, state.playbackContext);
+            this.telemetry.startTrack(
+              state.currentTrack,
+              state.playbackContext,
+            );
           } else {
             this.telemetry.flushCurrentTrack();
           }
@@ -317,6 +393,7 @@ class PlayerEngine {
           if (state.status === "playing") {
             this.telemetry.onPlaying();
             this.consecutiveAutoSkips = 0;
+            this.consecutiveOfflineSkips = 0;
           } else if (state.status === "paused" || state.status === "idle") {
             this.telemetry.onPausedOrStopped();
           }
@@ -466,9 +543,12 @@ class PlayerEngine {
       void playerRuntime.loadAndPlay(selectedTrack);
     }
 
-    if (finalIndex === finalQueue.length - 1) {
-      this.scheduleAppendSimilarTracks(mySession, selectedTrack.id);
-    }
+    this.maybeExtendQueue(
+      mySession,
+      selectedTrack.id,
+      finalIndex,
+      finalQueue.length,
+    );
   }
 
   public async playShuffled(
@@ -516,12 +596,11 @@ class PlayerEngine {
       void playerRuntime.loadAndPlay(seedTrack);
     }
 
-    if (finalQueue.length === 1) {
-      this.scheduleAppendSimilarTracks(mySession, seedTrack.id);
-    }
+    this.maybeExtendQueue(mySession, seedTrack.id, 0, finalQueue.length);
   }
 
   public async startRadioStation(track: Track): Promise<void> {
+    if (isLocalTrackId(track.id)) return;
     const store = usePlayerStore.getState();
     this.sessionId += 1;
     const mySession = this.sessionId;
@@ -530,6 +609,8 @@ class PlayerEngine {
     const waveId = this.radioWaveId;
 
     store.setPlaybackContext(`radio:${track.id}`);
+    // a station never loops back to its first track
+    if (store.repeat === "all") store.setRepeat("off");
     store.setPlaybackContextCover(track.coverUrl ?? null);
     store.setQueue([track]);
     this.originalUpcomingQueue = [];
@@ -560,7 +641,10 @@ class PlayerEngine {
           const shuffledUpcoming = shuffleArray(upcoming);
           latestStore.setQueue([track, ...shuffledUpcoming]);
         }
-        const sample = additions.slice(0, 3).map((t) => `"${t.title}" by ${t.artists || 'Unknown'}`).join(', ');
+        const sample = additions
+          .slice(0, 3)
+          .map((t) => `"${t.title}" by ${t.artists || "Unknown"}`)
+          .join(", ");
         log(
           "green",
           "radio",
@@ -582,7 +666,9 @@ class PlayerEngine {
     if (wasLoading) {
       playerRuntime?.cancelPendingLoad();
     }
-    const audioEl = document.getElementById("liner-audio") as HTMLAudioElement | null;
+    const audioEl = document.getElementById(
+      "liner-audio",
+    ) as HTMLAudioElement | null;
     if (audioEl && !Number.isNaN(audioEl.currentTime)) {
       store.setPosition(Math.round(audioEl.currentTime * 1000));
     }
@@ -620,6 +706,27 @@ class PlayerEngine {
     const store = usePlayerStore.getState();
     const nextIndex = this.computeNextIndex(isAutoEnd);
 
+    if (
+      nextIndex === null &&
+      isRadioContext(store.playbackContext) &&
+      store.currentTrack
+    ) {
+      // radio ran dry (refill not back yet / failed earlier): fetch now and carry on
+      const lengthBefore = store.queue.length;
+      const waitSession = this.sessionId;
+      store.setStatus("loading", null);
+      if (this.radioAppendTimeout) {
+        clearTimeout(this.radioAppendTimeout);
+        this.radioAppendTimeout = null;
+      }
+      await this.appendSimilarTracksForSeed(waitSession, store.currentTrack.id);
+      if (waitSession !== this.sessionId) return;
+      if (usePlayerStore.getState().queue.length > lengthBefore) {
+        await this.skipNext(isAutoEnd);
+        return;
+      }
+    }
+
     if (nextIndex === null) {
       this.stopPlayback();
       store.setStatus("idle");
@@ -643,9 +750,12 @@ class PlayerEngine {
       if (playerRuntime) {
         void playerRuntime.loadAndPlay(nextTrack);
       }
-      if (nextIndex === store.queue.length - 1) {
-        this.scheduleAppendSimilarTracks(mySession, nextTrack.id);
-      }
+      this.maybeExtendQueue(
+        mySession,
+        nextTrack.id,
+        nextIndex,
+        store.queue.length,
+      );
     }
   }
 
@@ -662,7 +772,7 @@ class PlayerEngine {
     const prevIndex =
       store.currentIndex > 0
         ? store.currentIndex - 1
-        : store.repeat === "all"
+        : store.repeat === "all" && !isRadioContext(store.playbackContext)
           ? store.queue.length - 1
           : 0;
 
@@ -679,9 +789,12 @@ class PlayerEngine {
       if (playerRuntime) {
         void playerRuntime.loadAndPlay(prevTrack);
       }
-      if (prevIndex === store.queue.length - 1) {
-        this.scheduleAppendSimilarTracks(mySession, prevTrack.id);
-      }
+      this.maybeExtendQueue(
+        mySession,
+        prevTrack.id,
+        prevIndex,
+        store.queue.length,
+      );
     }
   }
 
@@ -706,7 +819,10 @@ class PlayerEngine {
 
   public setPitchSemitones(semitones: number): void {
     pitchShifter.resumeContext();
-    const clampedSemitones = Math.min(12, Math.max(-12, Number(semitones.toFixed(1))));
+    const clampedSemitones = Math.min(
+      12,
+      Math.max(-12, Number(semitones.toFixed(1))),
+    );
     const store = usePlayerStore.getState();
     if (store.isPitchLinked) {
       const rate = Number(Math.pow(2, clampedSemitones / 12).toFixed(2));
@@ -739,6 +855,38 @@ class PlayerEngine {
   public setReverbLevel(level: number): void {
     pitchShifter.resumeContext();
     usePlayerStore.getState().setReverbLevel(level);
+  }
+
+  public setIsEqEnabled(enabled: boolean): void {
+    pitchShifter.resumeContext();
+    usePlayerStore.getState().setIsEqEnabled(enabled);
+  }
+
+  public setEqGains(gains: number[]): void {
+    pitchShifter.resumeContext();
+    usePlayerStore.getState().setEqGains(gains);
+  }
+
+  // saves the current curve under a name; same name overwrites, the list is capped
+  public saveEqPreset(name: string): void {
+    const store = usePlayerStore.getState();
+    const trimmed = name.trim().slice(0, EQ_PRESET_NAME_MAX);
+    if (!trimmed) return;
+    const others = store.eqCustomPresets.filter(
+      (preset) => preset.name.toLowerCase() !== trimmed.toLowerCase(),
+    );
+    if (others.length >= EQ_MAX_CUSTOM_PRESETS) return;
+    store.setEqCustomPresets([
+      ...others,
+      { id: crypto.randomUUID(), name: trimmed, gains: [...store.eqGains] },
+    ]);
+  }
+
+  public deleteEqPreset(id: string): void {
+    const store = usePlayerStore.getState();
+    store.setEqCustomPresets(
+      store.eqCustomPresets.filter((preset) => preset.id !== id),
+    );
   }
 
   public resetSpeedAndPitch(): void {
@@ -866,6 +1014,30 @@ class PlayerEngine {
     this.preloadNextTrack(store);
   }
 
+  public async stopAndClear(): Promise<void> {
+    const reported = this.telemetry.flushCurrentTrack();
+    if (this.radioAppendTimeout) {
+      clearTimeout(this.radioAppendTimeout);
+      this.radioAppendTimeout = null;
+    }
+    this.radioFetchInFlight = null;
+    this.radioWaveId = null;
+    this.lyricsAbort?.abort();
+    this.lyricsAbort = null;
+    this.lyricsLoadToken += 1;
+    this.currentLyricsTrackId = null;
+    this.masterPlaylist = [];
+    this.originalUpcomingQueue = [];
+    this.lastPreloadKey = null;
+    this.consecutiveAutoSkips = 0;
+    this.consecutiveOfflineSkips = 0;
+    playerRuntime?.stop();
+    usePlayerStore.getState().resetPlayback();
+    useLyricsStore.getState().reset();
+    debouncedStorage.flush();
+    await reported;
+  }
+
   public clearQueue(): void {
     usePlayerStore.getState().clearQueue();
     this.masterPlaylist = [];
@@ -891,9 +1063,15 @@ class PlayerEngine {
     let newCurrentIndex = store.currentIndex;
     if (store.currentIndex === fromIndex) {
       newCurrentIndex = toIndex;
-    } else if (fromIndex < store.currentIndex && toIndex >= store.currentIndex) {
+    } else if (
+      fromIndex < store.currentIndex &&
+      toIndex >= store.currentIndex
+    ) {
       newCurrentIndex -= 1;
-    } else if (fromIndex > store.currentIndex && toIndex <= store.currentIndex) {
+    } else if (
+      fromIndex > store.currentIndex &&
+      toIndex <= store.currentIndex
+    ) {
       newCurrentIndex += 1;
     }
 
@@ -902,6 +1080,53 @@ class PlayerEngine {
       store.setCurrentTrack(store.currentTrack, newCurrentIndex);
     }
     this.preloadNextTrack(store);
+  }
+
+  // the playing track is not removable from here: skip it instead
+  // returns the undo, or null when nothing was removed
+  public removeFromQueue(index: number): (() => void) | null {
+    const store = usePlayerStore.getState();
+    if (
+      index < 0 ||
+      index >= store.queue.length ||
+      index === store.currentIndex
+    )
+      return null;
+
+    const track = store.queue[index];
+    const queue = store.queue.filter((_, i) => i !== index);
+    store.setQueue(queue);
+    if (index < store.currentIndex) {
+      store.setCurrentTrack(store.currentTrack, store.currentIndex - 1);
+    }
+    const after = usePlayerStore.getState();
+    this.preloadNextTrack(after);
+    // removing the last upcoming track makes the playing one the last: refill like skipNext does
+    if (after.currentTrack)
+      this.maybeExtendQueue(
+        this.sessionId,
+        after.currentTrack.id,
+        after.currentIndex,
+        after.queue.length,
+      );
+    // undo only applies to the queue it was made on, not to a queue started or edited since
+    return () => {
+      if (usePlayerStore.getState().queue === queue)
+        this.insertIntoQueue(index, track);
+    };
+  }
+
+  // undo for removeFromQueue: puts the track back at the position it had
+  public insertIntoQueue(index: number, track: Track): void {
+    const store = usePlayerStore.getState();
+    const at = Math.max(0, Math.min(index, store.queue.length));
+    const queue = [...store.queue];
+    queue.splice(at, 0, track);
+    store.setQueue(queue);
+    if (store.currentIndex >= 0 && at <= store.currentIndex) {
+      store.setCurrentTrack(store.currentTrack, store.currentIndex + 1);
+    }
+    this.preloadNextTrack(usePlayerStore.getState());
   }
 
   public snapshotQueue(): Track[] {
@@ -923,12 +1148,42 @@ class PlayerEngine {
     }));
   }
 
-  private handlePlaybackError(info: { trackId: string; message: string }): void {
+  private handlePlaybackError(info: {
+    trackId: string;
+    message: string;
+  }): void {
     const store = usePlayerStore.getState();
     if (!store.currentTrack || store.currentTrack.id !== info.trackId) return;
 
     const track = store.currentTrack;
     const translate = createTranslatorSync(getStoredLocale());
+    if (info.message.startsWith(OFFLINE_UNAVAILABLE_MESSAGE)) {
+      this.consecutiveOfflineSkips += 1;
+      if (this.consecutiveOfflineSkips > store.queue.length) {
+        showToast(translate("offline.nothing_playable"), "info", {
+          id: "offline-skip",
+        });
+        this.consecutiveOfflineSkips = 0;
+        this.stopPlayback();
+        store.setStatus("idle");
+        store.setPosition(0);
+        store.setDuration(0);
+        store.setCurrentTrack(null, -1);
+        return;
+      }
+      showToast(translate("offline.skipped_title"), "info", {
+        id: "offline-skip",
+        description: translate("offline.skipped_desc"),
+      });
+      void this.skipNext(false);
+      return;
+    }
+    // youtube refusing every stream is about the connection (vpn, proxy, flagged ip), not this track
+    const refused = info.message.startsWith(STREAMS_REFUSED_MESSAGE);
+    noteYoutubeTrouble(refused ? "refused" : "failed");
+    const refusedToast = {
+      description: translate("player.youtube_refused_description"),
+    };
     this.consecutiveAutoSkips += 1;
 
     if (this.consecutiveAutoSkips > MAX_CONSECUTIVE_AUTO_SKIPS) {
@@ -937,7 +1192,17 @@ class PlayerEngine {
         "playback",
         `${this.consecutiveAutoSkips} consecutive tracks failed to play — stopping instead of skipping further`,
       );
-      showToast(translate("player.playback_stopped_too_many_errors"), "error");
+      if (refused)
+        showToast(
+          translate("player.youtube_refused_title"),
+          "error",
+          refusedToast,
+        );
+      else
+        showToast(
+          translate("player.playback_stopped_too_many_errors"),
+          "error",
+        );
       this.consecutiveAutoSkips = 0;
       this.stopPlayback();
       store.setStatus("idle");
@@ -948,10 +1213,23 @@ class PlayerEngine {
     }
 
     console.error("[PlaybackError]", info.trackId, info.message);
-    log("yellow", "playback", `"${track.title}" failed (${info.message}) — skipping to next`);
-    showToast(translate("player.track_unavailable_title"), "error", {
-      description: track.artists ? `${track.title} — ${track.artists}` : track.title,
-    });
+    log(
+      "yellow",
+      "playback",
+      `"${track.title}" failed (${info.message}) — skipping to next`,
+    );
+    if (refused)
+      showToast(
+        translate("player.youtube_refused_title"),
+        "error",
+        refusedToast,
+      );
+    else
+      showToast(translate("player.track_unavailable_title"), "error", {
+        description: track.artists
+          ? `${track.title} — ${track.artists}`
+          : track.title,
+      });
     void this.skipNext(false);
   }
 
@@ -962,8 +1240,24 @@ class PlayerEngine {
     if (isAutoEnd && store.repeat === "one") return store.currentIndex;
 
     if (store.currentIndex + 1 < queueSize) return store.currentIndex + 1;
+    // radio never wraps to its first track; skipNext refills it instead
+    if (isRadioContext(store.playbackContext)) return null;
     if (store.repeat === "all" || store.repeat === "one") return 0;
     return null;
+  }
+
+  /** queue refill trigger: radio refills early (one track left), autoplay-similar on the last track */
+  private maybeExtendQueue(
+    session: number,
+    seedTrackId: string,
+    index: number,
+    queueLength: number,
+  ): void {
+    const radio = isRadioContext(usePlayerStore.getState().playbackContext);
+    const due = radio
+      ? shouldRefillRadio(queueLength, index)
+      : index === queueLength - 1;
+    if (due) this.scheduleAppendSimilarTracks(session, seedTrackId);
   }
 
   private scheduleAppendSimilarTracks(
@@ -980,14 +1274,34 @@ class PlayerEngine {
     }, 400);
   }
 
-  private async appendSimilarTracksForSeed(
+  private appendSimilarTracksForSeed(
+    session: number,
+    seedTrackId: string,
+  ): Promise<void> {
+    if (this.radioFetchInFlight) return this.radioFetchInFlight;
+    const run = this.fetchAndAppendSimilarTracks(session, seedTrackId).finally(
+      () => {
+        if (this.radioFetchInFlight === run) this.radioFetchInFlight = null;
+      },
+    );
+    this.radioFetchInFlight = run;
+    return run;
+  }
+
+  private async fetchAndAppendSimilarTracks(
     session: number,
     seedTrackId: string,
   ): Promise<void> {
     const currentState = usePlayerStore.getState();
-    if (!currentState.autoplaySimilar) return;
+    // radio always continues; plain lists only when "autoplay similar" is on
+    const radio = isRadioContext(currentState.playbackContext);
+    if (!radio && !continuesWithSimilar(currentState)) return;
+    if (isLocalTrackId(seedTrackId)) return;
+    const startContext = currentState.playbackContext;
 
-    const historyIds = currentState.queue.map((track) => track.id);
+    const historyIds = currentState.queue
+      .map((track) => track.id)
+      .filter((id) => !isLocalTrackId(id));
     // keep paginating the same wave instance across queue generations
     if (!this.radioWaveId) this.radioWaveId = newRadioWaveId();
     const waveId = this.radioWaveId;
@@ -1010,8 +1324,15 @@ class PlayerEngine {
     }
 
     const state = usePlayerStore.getState();
-    if (session !== this.sessionId) return;
-    if (!state.autoplaySimilar) return;
+    // radio: still valid while the same station plays (skipping within it is fine);
+    // anything else: only for the exact track session that asked
+    if (
+      radio
+        ? state.playbackContext !== startContext
+        : session !== this.sessionId
+    )
+      return;
+    if (!radio && !continuesWithSimilar(state)) return;
 
     const queuedIds = new Set(state.queue.map((track) => track.id));
     const additions = items
@@ -1019,7 +1340,10 @@ class PlayerEngine {
       .filter((track) => !queuedIds.has(track.id));
     if (additions.length === 0) return;
 
-    const sample = additions.slice(0, 3).map((t) => `"${t.title}" by ${t.artists || 'Unknown'}`).join(', ');
+    const sample = additions
+      .slice(0, 3)
+      .map((t) => `"${t.title}" by ${t.artists || "Unknown"}`)
+      .join(", ");
     log(
       "green",
       "radio",
@@ -1032,8 +1356,7 @@ class PlayerEngine {
   private async syncDiscordPresence(
     _state: PlayerState,
     _trackChanged: boolean = false,
-  ): Promise<void> {
-  }
+  ): Promise<void> {}
 
   private preloadNextTrack(state: PlayerState): void {
     const queue = state.queue;
@@ -1041,7 +1364,11 @@ class PlayerEngine {
     let nextTrack: Track | null = null;
     if (currentIndex >= 0 && currentIndex < queue.length - 1) {
       nextTrack = queue[currentIndex + 1];
-    } else if (state.repeat === "all" && queue.length > 0) {
+    } else if (
+      state.repeat === "all" &&
+      queue.length > 0 &&
+      !isRadioContext(state.playbackContext)
+    ) {
       nextTrack = queue[0];
     }
 
@@ -1064,6 +1391,7 @@ class PlayerEngine {
     if (!lyricsCache.has(nextTrack.id)) {
       void this.prefetchLyrics(nextTrack.id, lyricsHint(nextTrack));
     }
+    void loadAmbientScript(nextTrack.id);
 
     void linerDb.putTrack(nextTrack);
 
@@ -1072,8 +1400,11 @@ class PlayerEngine {
     }
   }
 
-  private async prefetchLyrics(trackId: string, hint?: LyricsHint): Promise<void> {
-    if (!trackId) return;
+  private async prefetchLyrics(
+    trackId: string,
+    hint?: LyricsHint,
+  ): Promise<void> {
+    if (!trackId || isLocalTrackId(trackId)) return;
 
     if (lyricsCache.has(trackId)) return;
     if (this.inFlightLyricsPrefetches.has(trackId)) {
@@ -1099,7 +1430,11 @@ class PlayerEngine {
         }[] = [];
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 8000);
-        for await (const event of api.streamLyrics(trackId, controller.signal, hint)) {
+        for await (const event of api.streamLyrics(
+          trackId,
+          controller.signal,
+          hint,
+        )) {
           if (event.type === "provider" && event.status === "found") {
             const candidate = event.candidate;
             if (shouldCacheLyricsCandidate(candidate)) {
@@ -1111,7 +1446,10 @@ class PlayerEngine {
               quality: candidate.quality.total,
               candidate,
             });
-            if (!bestCandidate || isBetterLyricsCandidate(candidate, bestCandidate)) {
+            if (
+              !bestCandidate ||
+              isBetterLyricsCandidate(candidate, bestCandidate)
+            ) {
               bestCandidate = candidate;
             }
           } else if (event.type === "done") {
@@ -1145,6 +1483,77 @@ class PlayerEngine {
     return prefetchPromise;
   }
 
+  private showLyricsCandidate(
+    trackId: string,
+    candidate: LyricsCandidate,
+    availableProviders: CachedLyricsItem["availableProviders"],
+  ): void {
+    const parsed = parseRawLyrics(
+      candidate.lyrics.content,
+      candidate.lyrics.format,
+    );
+    useLyricsStore.getState().setLyricsState({
+      lyricsLoading: false,
+      lyricsError: null,
+      rawLyrics: candidate.lyrics.content,
+      rawFormat: candidate.lyrics.format,
+      braccatoLyrics: parsed.braccatoLyrics,
+      syncedLines: parsed.syncedLines,
+      plainLyrics: parsed.plainLyrics,
+      lyricsQuality: candidate.quality.total,
+      currentLyricsTrackId: trackId,
+      activeProvider: candidate.provider,
+      availableProviders,
+    });
+  }
+
+  private showNoLyrics(trackId: string, lyricsError: string | null): void {
+    useLyricsStore.getState().setLyricsState({
+      lyricsLoading: false,
+      lyricsError,
+      rawLyrics: null,
+      rawFormat: null,
+      braccatoLyrics: [],
+      syncedLines: [],
+      plainLyrics: null,
+      lyricsQuality: 0,
+      currentLyricsTrackId: trackId,
+      activeProvider: null,
+      availableProviders: [],
+    });
+  }
+
+  private async loadLocalTrackLyrics(
+    track: Track,
+    token: number,
+    signal: AbortSignal,
+  ): Promise<void> {
+    const trackId = track.id;
+    const cached = lyricsCache.get(trackId);
+    const candidate =
+      cached?.candidate ??
+      (await readStoredLocalLyrics(localFileId(trackId))) ??
+      (await linerDb.getLyrics(trackId).catch(() => null))?.candidate ??
+      null;
+    if (token !== this.lyricsLoadToken || signal.aborted) return;
+    if (!candidate) {
+      this.showNoLyrics(trackId, null);
+      return;
+    }
+    const providers = cached?.availableProviders?.length
+      ? cached.availableProviders
+      : [
+          {
+            provider: candidate.provider,
+            syncLevel: candidate.syncLevel,
+            quality: candidate.quality.total,
+            candidate,
+          },
+        ];
+    if (!cached) lyricsCache.set(trackId, candidate, providers);
+    this.showLyricsCandidate(trackId, candidate, providers);
+  }
+
   private async fetchLyricsForTrack(track: Track | null): Promise<void> {
     const lyricsStore = useLyricsStore.getState();
 
@@ -1161,6 +1570,19 @@ class PlayerEngine {
     ) {
       return;
     }
+    if (isLocalTrackId(trackId)) {
+      this.currentLyricsTrackId = trackId;
+      const localToken = ++this.lyricsLoadToken;
+      this.lyricsAbort?.abort();
+      const localController = new AbortController();
+      this.lyricsAbort = localController;
+      await this.loadLocalTrackLyrics(
+        track,
+        localToken,
+        localController.signal,
+      );
+      return;
+    }
 
     this.currentLyricsTrackId = trackId;
     const token = ++this.lyricsLoadToken;
@@ -1170,12 +1592,27 @@ class PlayerEngine {
     let bestCandidate: LyricsCandidate | null = null;
 
     const memoryCached = lyricsCache.get(trackId);
-    let cached: CachedLyricsItem | CachedLyricsRecord | null = memoryCached || null;
+    let cached: CachedLyricsItem | CachedLyricsRecord | null =
+      memoryCached || null;
     if (!cached) {
       try {
         cached = await linerDb.getLyrics(trackId);
       } catch {
         cached = null;
+      }
+    }
+    if (!cached) {
+      const saved = await readSavedLyrics(trackId, isLyricsCandidate);
+      if (saved) {
+        cached = { trackId, candidate: saved, timestamp: Date.now() };
+        lyricsCache.set(trackId, saved, [
+          {
+            provider: saved.provider,
+            syncLevel: saved.syncLevel,
+            quality: saved.quality.total,
+            candidate: saved,
+          },
+        ]);
       }
     }
 
@@ -1206,10 +1643,17 @@ class PlayerEngine {
         ],
       });
 
-      const lastChecked = (cached as any).lastCheckedAt || (cached as any).timestamp || 0;
-      log("cyan", "lyrics", `cache hit for "${track.title}" (age: ${Math.round((Date.now() - lastChecked) / 1000)}s)`);
+      const lastChecked =
+        (cached as any).lastCheckedAt || (cached as any).timestamp || 0;
+      log(
+        "cyan",
+        "lyrics",
+        `cache hit for "${track.title}" (age: ${Math.round((Date.now() - lastChecked) / 1000)}s)`,
+      );
       const isStale = Date.now() - lastChecked >= SEVEN_DAYS_MS;
-      if (!isStale || (cached as any).userLocked) {
+      const needsRefresh =
+        isStale || isProvisionalLyricsCandidate(cached.candidate);
+      if (!needsRefresh || (cached as any).userLocked) {
         return;
       }
 
@@ -1234,7 +1678,8 @@ class PlayerEngine {
       try {
         await this.inFlightLyricsPrefetches.get(trackId);
         if (token !== this.lyricsLoadToken || controller.signal.aborted) return;
-        const freshCached = lyricsCache.get(trackId) || (await linerDb.getLyrics(trackId));
+        const freshCached =
+          lyricsCache.get(trackId) || (await linerDb.getLyrics(trackId));
         if (freshCached && freshCached.candidate) {
           const parsed = parseRawLyrics(
             freshCached.candidate.lyrics.content,
@@ -1261,7 +1706,11 @@ class PlayerEngine {
     log("cyan", "lyrics", `fetching for "${track.title}"`);
 
     try {
-      for await (const event of api.streamLyrics(trackId, controller.signal, lyricsHint(track))) {
+      for await (const event of api.streamLyrics(
+        trackId,
+        controller.signal,
+        lyricsHint(track),
+      )) {
         if (token !== this.lyricsLoadToken || controller.signal.aborted) break;
 
         if (event.type === "provider" && event.status === "found") {
@@ -1295,7 +1744,8 @@ class PlayerEngine {
               candidate.lyrics.content,
               candidate.lyrics.format,
             );
-            if (token !== this.lyricsLoadToken || controller.signal.aborted) break;
+            if (token !== this.lyricsLoadToken || controller.signal.aborted)
+              break;
 
             useLyricsStore.getState().setLyricsState({
               activeProvider: candidate.provider,
@@ -1345,7 +1795,8 @@ class PlayerEngine {
           );
         } else if (event.type === "done") {
           if (bestCandidate && shouldCacheLyricsCandidate(bestCandidate)) {
-            const currentProviders = useLyricsStore.getState().availableProviders;
+            const currentProviders =
+              useLyricsStore.getState().availableProviders;
             lyricsCache.set(trackId, bestCandidate, currentProviders);
             void linerDb.putLyrics({
               trackId,

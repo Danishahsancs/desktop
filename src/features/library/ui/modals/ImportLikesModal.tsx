@@ -1,17 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import Button from "@/shared/ui/Button";
 import TextInput from "@/shared/ui/TextInput";
 import Dialog from "@/shared/ui/Dialog";
+import { DialogActions, DialogButton, DialogHeader } from "@/shared/ui";
 import { useTranslation } from "@/languages";
 import { useModalStore } from "../../store/modalStore";
 import { useImportStore } from "../../store/importStore";
-import { api, resolveApiErrorMessage } from "@/shared/api";
+import { resolveApiErrorMessage } from "@/shared/api";
 
 export default function ImportLikesModal() {
   const { t } = useTranslation();
 
   const open = useModalStore((state) => state.importLikesOpen);
-  const initialUsername = useModalStore((state) => state.importLikesInitialUsername);
+  const initialUsername = useModalStore(
+    (state) => state.importLikesInitialUsername,
+  );
   const close = useModalStore((state) => state.closeImportLikes);
 
   const [username, setUsername] = useState("");
@@ -35,9 +37,10 @@ export default function ImportLikesModal() {
       return;
     }
 
-    const sourceUrl = trimmed.startsWith("http://") || trimmed.startsWith("https://")
-      ? trimmed
-      : `https://soundcloud.com/${encodeURIComponent(trimmed)}/likes`;
+    const sourceUrl =
+      trimmed.startsWith("http://") || trimmed.startsWith("https://")
+        ? trimmed
+        : `https://soundcloud.com/${encodeURIComponent(trimmed)}/likes`;
 
     setImportError("");
     setImporting(true);
@@ -46,33 +49,25 @@ export default function ImportLikesModal() {
       await useImportStore.getState().startImport(sourceUrl);
       close();
     } catch (err: unknown) {
-      setImportError(resolveApiErrorMessage(err, t, "common.failed_import_playlist"));
+      setImportError(
+        resolveApiErrorMessage(err, t, "common.failed_import_playlist"),
+      );
     } finally {
       setImporting(false);
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (!next ? close() : undefined)} maxWidth={360}>
-      <div className="flex flex-col gap-[12px] px-[16px] pb-[16px]">
-        {/* Header */}
-        <div className="flex flex-col gap-[2px]">
-          <p
-            className="text-text-primary text-[13px] font-[500] m-0"
-            style={{
-              fontFamily: "var(--font-inter), sans-serif",
-              letterSpacing: "-0.01em",
-            }}
-          >
-            {t("common.import_soundcloud_likes")}
-          </p>
-          <p
-            className="text-text-tertiary text-[12px] m-0 font-[350]"
-            style={{ fontFamily: "var(--font-inter), sans-serif" }}
-          >
-            {t("common.import_soundcloud_description")}
-          </p>
-        </div>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => (!next ? close() : undefined)}
+      maxWidth={360}
+    >
+      <div className="flex flex-col gap-[14px] px-[20px] pb-[20px]">
+        <DialogHeader
+          title={t("common.import_soundcloud_likes")}
+          description={t("common.import_soundcloud_description")}
+        />
 
         {/* Username input */}
         <TextInput
@@ -88,33 +83,25 @@ export default function ImportLikesModal() {
             if (e.key === "Enter") void handleImport();
           }}
           maxLength={100}
-          size="sm"
-          className="!rounded-md"
+          className="!rounded-[12px] !border-transparent !bg-black/[0.05] dark:!bg-white/[0.07]"
         />
 
         {importError && (
-          <p
-            className="text-accent-secondary text-[12px] m-0 font-[350]"
-            style={{ fontFamily: "var(--font-inter), sans-serif" }}
-          >
+          <p className="text-accent-secondary text-[12px] m-0 font-[350]">
             {importError}
           </p>
         )}
 
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          onClick={() => void handleImport()}
-          disabled={importing}
-          className={`w-full !rounded-md ${importing ? "pointer-events-none" : ""}`}
-        >
-          {importing ? (
-            <span className="inline-block h-[13px] w-[13px] rounded-full border-[2px] border-btn-primary-text/30 border-t-btn-primary-text animate-spin" />
-          ) : (
-            t("common.import_likes")
-          )}
-        </Button>
+        <DialogActions>
+          <DialogButton
+            type="button"
+            variant="primary"
+            onClick={() => void handleImport()}
+            loading={importing}
+          >
+            {t("common.import_likes")}
+          </DialogButton>
+        </DialogActions>
       </div>
     </Dialog>
   );

@@ -4,6 +4,7 @@ import DropdownMenu from "@/shared/ui/DropdownMenu";
 import type { DropdownMenuItem } from "@/shared/ui/DropdownMenu";
 import { useTranslation } from "@/languages";
 import { ArtistLink } from "@/features/artist";
+import HighlightedText from "@/shared/ui/HighlightedText";
 import ExplicitBadge from "@/shared/ui/ExplicitBadge";
 import CoverImage from "@/features/covers/ui/CoverImage";
 import { isCoverReady } from "@/features/covers/lib/coverArt";
@@ -36,6 +37,10 @@ export interface SongCardProps {
   icon?: React.ReactNode;
   showReorderHandle?: boolean;
   onGrabStart?: (e: React.PointerEvent<HTMLDivElement>) => void;
+  /** search query whose matches get marked in the title */
+  highlight?: string;
+  hideArtists?: boolean;
+  trailingAction?: React.ReactNode;
 }
 
 function SongCard({
@@ -62,8 +67,10 @@ function SongCard({
   onNavigate,
   compact = false,
   icon,
-  showReorderHandle,
   onGrabStart,
+  highlight,
+  hideArtists = false,
+  trailingAction,
 }: SongCardProps) {
   const { t } = useTranslation();
   const [imageLoaded, setImageLoaded] = useState(() => isCoverReady(coverUrl));
@@ -73,11 +80,19 @@ function SongCard({
     setImageLoaded(isCoverReady(coverUrl));
   }, [coverUrl]);
 
-  const imageSizeClass = compact ? "h-[40px] w-[40px]" : "h-[48px] w-[48px]";
+  const imageSizeClass = compact
+    ? "h-[40px] w-[40px]"
+    : hideArtists
+      ? "h-[36px] w-[48px]"
+      : "h-[48px] w-[48px]";
   const titleSizeClass = compact ? "text-[14px]" : "text-[16px]";
   const artistSizeClass = compact ? "text-[12px]" : "text-[15px]";
   const gapClass = compact ? "gap-[12px]" : "gap-[16px]";
-  const paddingClass = compact ? "p-[6px]" : "p-[8px]";
+  const paddingClass = compact
+    ? "p-[6px]"
+    : hideArtists
+      ? "px-[8px] py-[4px]"
+      : "p-[8px]";
 
   const handleClick = (e: React.MouseEvent) => {
     if (typeof window !== "undefined" && window.__linerWasDragging) {
@@ -148,7 +163,6 @@ function SongCard({
           <div
             className={`flex ${imageSizeClass} shrink-0 items-center justify-center ${titleSizeClass} text-text-tertiary`}
             style={{
-              fontFamily: "var(--font-inter), sans-serif",
               fontWeight: 400,
             }}
           >
@@ -183,14 +197,20 @@ function SongCard({
 
         <div className="min-w-0 flex flex-col gap-[2px]">
           <div className="flex items-center gap-[8px]">
+            {hideArtists && explicit && (
+              <ExplicitBadge size="md" className="-mr-[2px] shrink-0" />
+            )}
             <h3
               className={`m-0 max-w-[min(52vw,560px)] overflow-hidden text-ellipsis whitespace-nowrap ${titleSizeClass} leading-[1.2] text-text-primary`}
               style={{
-                fontFamily: "var(--font-inter), sans-serif",
-                fontWeight: 400,
+                fontWeight: hideArtists ? 500 : 400,
               }}
             >
-              {title}
+              {highlight ? (
+                <HighlightedText text={title} query={highlight} />
+              ) : (
+                title
+              )}
             </h3>
             {repostedBy && (
               <div
@@ -202,26 +222,29 @@ function SongCard({
               </div>
             )}
           </div>
-          <p
-            className={`m-0 flex min-w-0 items-center ${artistSizeClass} leading-[1.2] text-text-secondary overflow-hidden`}
-            style={{
-              fontFamily: "var(--font-inter), sans-serif",
-              fontWeight: 350,
-            }}
-          >
-            {explicit && <ExplicitBadge size="md" className="mr-[6px] shrink-0" />}
-            {artistsClickable ? (
-              <ArtistLink
-                name={artists}
-                artistId={artistId}
-                artistList={artistList}
-                onNavigate={onNavigate}
-                className="text-text-secondary"
-              />
-            ) : (
-              <span className="truncate select-none">{artists}</span>
-            )}
-          </p>
+          {!hideArtists && (
+            <p
+              className={`m-0 flex min-w-0 items-center ${artistSizeClass} leading-[1.2] text-text-secondary overflow-hidden`}
+              style={{
+                fontWeight: 350,
+              }}
+            >
+              {explicit && (
+                <ExplicitBadge size="md" className="mr-[6px] shrink-0" />
+              )}
+              {artistsClickable ? (
+                <ArtistLink
+                  name={artists}
+                  artistId={artistId}
+                  artistList={artistList}
+                  onNavigate={onNavigate}
+                  className="text-text-secondary"
+                />
+              ) : (
+                <span className="truncate select-none">{artists}</span>
+              )}
+            </p>
+          )}
         </div>
       </div>
 
@@ -230,7 +253,6 @@ function SongCard({
           <span
             className="text-[14px] text-text-tertiary"
             style={{
-              fontFamily: "var(--font-inter), sans-serif",
               fontWeight: 400,
             }}
           >
@@ -241,7 +263,6 @@ function SongCard({
           <span
             className="text-[14px] text-text-tertiary"
             style={{
-              fontFamily: "var(--font-inter), sans-serif",
               fontWeight: 400,
             }}
           >
@@ -265,6 +286,7 @@ function SongCard({
             position={menuPosition}
           />
         )}
+        {trailingAction}
       </div>
     </div>
   );

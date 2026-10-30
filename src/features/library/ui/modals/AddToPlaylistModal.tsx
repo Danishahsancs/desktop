@@ -1,15 +1,19 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
-import { PlaylistFill, Search2Line, CloseCircleFill, AddLine } from "@mingcute/react";
+import {
+  PlaylistFill,
+  Search2Line,
+  CloseCircleFill,
+  AddLine,
+} from "@mingcute/react";
 import { useToast } from "@/shared/ui";
 import { ApiError } from "@/shared/api";
 import TextInput from "@/shared/ui/TextInput";
 import Dialog from "@/shared/ui/Dialog";
+import { DialogActions, DialogButton } from "@/shared/ui";
 import CoverImage from "@/features/covers/ui/CoverImage";
 import { useTranslation } from "@/languages";
 import { useAddPlaylistTracks, usePlaylistsList } from "../../hooks";
 import { useModalStore } from "../../store/modalStore";
-
-const font = { fontFamily: "var(--font-inter), sans-serif" } as const;
 
 export default function AddToPlaylistModal() {
   const { toast } = useToast();
@@ -30,7 +34,10 @@ export default function AddToPlaylistModal() {
   const { data: playlistData } = usePlaylistsList();
   const addTrack = useAddPlaylistTracks();
 
-  const rawPlaylists = track?.playlists ?? playlistData?.playlists ?? [];
+  const rawPlaylists = useMemo(
+    () => track?.playlists ?? playlistData?.playlists ?? [],
+    [track?.playlists, playlistData?.playlists],
+  );
 
   const playlists = useMemo(() => {
     if (!searchQuery.trim()) return rawPlaylists;
@@ -101,15 +108,16 @@ export default function AddToPlaylistModal() {
   };
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (!next ? close() : undefined)} maxWidth={400}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => (!next ? close() : undefined)}
+      maxWidth={400}
+    >
       {/* outer gutters live here (12px); rows bleed only 8px on hover so
           cover art sits at the same 20px inset as the header text */}
       <div className="flex flex-col gap-[12px] px-[12px] pb-[12px]">
         <div className="px-[8px] pt-[4px]">
-          <h2
-            className="m-0 text-[18px] font-[600] tracking-[-0.01em] text-text-primary"
-            style={font}
-          >
+          <h2 className="m-0 text-[18px] font-[600] tracking-[-0.01em] text-text-primary">
             {t("common.add_to_playlist")}
           </h2>
           {track && (
@@ -124,16 +132,16 @@ export default function AddToPlaylistModal() {
                     className="object-cover"
                   />
                 ) : (
-                  <span className="text-[15px] font-[600] text-text-tertiary" style={font}>
+                  <span className="text-[15px] font-[600] text-text-tertiary">
                     {track.title.charAt(0).toUpperCase()}
                   </span>
                 )}
               </div>
               <div className="flex min-w-0 flex-1 flex-col gap-[1px]">
-                <span className="truncate text-[13px] font-[500] text-text-primary" style={font}>
+                <span className="truncate text-[13px] font-[500] text-text-primary">
                   {track.title}
                 </span>
-                <span className="truncate text-[12px] text-text-tertiary" style={font}>
+                <span className="truncate text-[12px] text-text-tertiary">
                   {track.artists}
                 </span>
               </div>
@@ -202,16 +210,10 @@ export default function AddToPlaylistModal() {
                 </div>
 
                 <div className="flex flex-col gap-[1px] min-w-0 flex-1">
-                  <span
-                    className="text-[13px] font-[500] text-text-primary truncate"
-                    style={font}
-                  >
+                  <span className="text-[13px] font-[500] text-text-primary truncate">
                     {playlist.title}
                   </span>
-                  <span
-                    className="text-[12px] text-text-tertiary tabular-nums"
-                    style={font}
-                  >
+                  <span className="text-[12px] text-text-tertiary tabular-nums">
                     {t("common.tracks", { count: playlist.trackCount })}
                   </span>
                 </div>
@@ -230,7 +232,7 @@ export default function AddToPlaylistModal() {
               <span className="flex h-[36px] w-[36px] items-center justify-center rounded-full bg-bg-elevated text-text-tertiary">
                 <PlaylistFill size={18} />
               </span>
-              <p className="m-0 text-[13px] text-text-secondary" style={font}>
+              <p className="m-0 text-[13px] text-text-secondary">
                 {searchQuery
                   ? t("common.try_another_search_clear")
                   : t("common.no_playlists_yet")}
@@ -239,16 +241,15 @@ export default function AddToPlaylistModal() {
           )}
         </div>
 
-        <div className="px-[8px]">
-          <button
-            type="button"
-            onClick={handleNewPlaylist}
-            className="flex h-[36px] w-full items-center justify-center gap-[6px] rounded-md border border-border-primary bg-transparent text-[13px] font-[500] text-text-primary transition-colors hover:bg-bg-elevated cursor-pointer"
-            style={font}
-          >
-            <AddLine size={16} />
-            {t("library.create_playlist")}
-          </button>
+        <div className="px-[8px] pb-[8px]">
+          <DialogActions>
+            <DialogButton type="button" onClick={handleNewPlaylist}>
+              <span className="inline-flex items-center gap-[6px]">
+                <AddLine size={16} />
+                {t("library.create_playlist")}
+              </span>
+            </DialogButton>
+          </DialogActions>
         </div>
       </div>
     </Dialog>

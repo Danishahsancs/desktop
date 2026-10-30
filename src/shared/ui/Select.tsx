@@ -67,22 +67,32 @@ function ScrollingLabel({ text }: { text: string }) {
   const [hovered, setHovered] = useState(false);
 
   useLayoutEffect(() => {
-    if (!outerRef.current || !innerRef.current) return;
-    const d = Math.round(innerRef.current.scrollWidth - outerRef.current.clientWidth);
-    setDelta(d > 4 ? d : 0);
-  });
+    const outer = outerRef.current;
+    const inner = innerRef.current;
+    if (!outer || !inner) return;
+    const measure = () => {
+      const d = Math.round(inner.scrollWidth - outer.clientWidth);
+      setDelta(d > 4 ? d : 0);
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(outer);
+    return () => observer.disconnect();
+  }, [text]);
 
-  const maskStyle = delta > 0
-    ? {
-        maskImage: hovered
-          ? "linear-gradient(to right, transparent 0px, black 10px, black calc(100% - 12px), transparent 100%)"
-          : "linear-gradient(to right, black 0px, black calc(100% - 12px), transparent 100%)",
-        WebkitMaskImage: hovered
-          ? "linear-gradient(to right, transparent 0px, black 10px, black calc(100% - 12px), transparent 100%)"
-          : "linear-gradient(to right, black 0px, black calc(100% - 12px), transparent 100%)",
-        transition: "mask-image 200ms ease, -webkit-mask-image 200ms ease",
-      }
-    : undefined;
+  const maskStyle =
+    delta > 0
+      ? {
+          maskImage: hovered
+            ? "linear-gradient(to right, transparent 0px, black 10px, black calc(100% - 12px), transparent 100%)"
+            : "linear-gradient(to right, black 0px, black calc(100% - 12px), transparent 100%)",
+          WebkitMaskImage: hovered
+            ? "linear-gradient(to right, transparent 0px, black 10px, black calc(100% - 12px), transparent 100%)"
+            : "linear-gradient(to right, black 0px, black calc(100% - 12px), transparent 100%)",
+          transition: "mask-image 200ms ease, -webkit-mask-image 200ms ease",
+        }
+      : undefined;
 
   return (
     <span
@@ -92,13 +102,14 @@ function ScrollingLabel({ text }: { text: string }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-
       <span
         ref={innerRef}
         className="inline-block whitespace-nowrap"
         style={{
           transform:
-            hovered && delta > 0 ? `translateX(-${delta + 8}px)` : "translateX(0)",
+            hovered && delta > 0
+              ? `translateX(-${delta + 8}px)`
+              : "translateX(0)",
           transition: hovered
             ? `transform ${Math.max(800, delta * 12)}ms linear`
             : "transform 300ms ease",
@@ -211,7 +222,6 @@ export function Select<T extends string = string>({
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className={`inline-flex h-[36px] items-center justify-between gap-[8px] rounded-md border ${borderClass} ${bgClass} px-[12px] text-[13px] font-[400] text-text-primary transition-colors ${hoverClass} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary/70 focus-visible:ring-offset-1 focus-visible:ring-offset-bg-primary disabled:pointer-events-none disabled:opacity-50 cursor-pointer ${className}`.trim()}
-        style={{ fontFamily: "var(--font-inter), sans-serif" }}
       >
         <span className="inline-flex items-center gap-[7px] truncate min-w-0">
           {selected?.icon && (
@@ -255,7 +265,6 @@ export function Select<T extends string = string>({
                           : "bg-transparent text-text-secondary hover:bg-border-alpha-14 hover:text-text-primary"
                       } border-none cursor-pointer`}
                       style={{
-                        fontFamily: "var(--font-inter), sans-serif",
                         fontWeight: isActive ? 500 : 400,
                       }}
                     >

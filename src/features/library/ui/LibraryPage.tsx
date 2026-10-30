@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import LibraryControls from "./LibraryControls";
-import LibraryGrid from "./LibraryGrid";
+import LibraryGrid, { LibraryGridSkeleton } from "./LibraryGrid";
 import LibraryTabs from "./LibraryTabs";
 import type {
   LibraryItemViewModel,
@@ -13,13 +13,21 @@ import {
   usePlaylistsList,
   useExternalItems,
   useLikedTrackCount,
+  useYoutubeLibraryItems,
 } from "../hooks";
-import { HeartFill, AddLine } from "@mingcute/react";
+import { useLikesCover } from "../hooks/useLikesCover";
 import { useTranslation } from "@/languages";
 import { useModalStore } from "../store/modalStore";
 import { useImportStore } from "../store/importStore";
-import { useIsContentTransparent } from "@/features/settings/store/customizationStore";
+import { usePageBackdrop } from "@/shared/lib";
 import ImportingPlaylistCard from "./ImportingPlaylistCard";
+import OfflineMixCard from "./OfflineMixCard";
+import { LocalFilesCard } from "../local";
+import { CachedSongsCard, useCachedTracksStore } from "../cached";
+import { WifiOffLine } from "@mingcute/react";
+import { useOfflineModeStore } from "@/features/connectivity";
+import { goOnline } from "@/features/connectivity/engine/offlineController";
+import { useSavedTracks } from "../saved/hooks/useSavedTracks";
 
 const PAGE_SIZE = 24;
 
@@ -38,6 +46,7 @@ const initialTabState: TabState = {
 };
 
 const initialState: LibraryState = {
+  all: { ...initialTabState },
   playlists: { ...initialTabState },
   albums: { ...initialTabState },
   artists: { ...initialTabState },
@@ -46,8 +55,7 @@ const initialState: LibraryState = {
 function sortByRecent(items: LibraryItemViewModel[]) {
   const sorted = [...items];
   sorted.sort(
-    (a, b) =>
-      new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime(),
+    (a, b) => new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime(),
   );
   return sorted;
 }
@@ -64,7 +72,7 @@ function LikesPlaylistCard({
   viewMode?: LibraryViewMode;
 }) {
   const { t } = useTranslation();
-  const hasCustomBg = useIsContentTransparent();
+  const likesCover = useLikesCover();
 
   if (viewMode === "list") {
     return (
@@ -73,14 +81,12 @@ function LikesPlaylistCard({
         className="w-full flex items-center justify-between rounded-md p-[8px] outline-none transition-colors duration-150 ease-out cursor-pointer hover:bg-border-alpha-14 select-none"
       >
         <div className="flex items-center gap-[16px] min-w-0">
-          <div
-            className={`relative h-[48px] w-[48px] shrink-0 overflow-hidden rounded-md flex items-center justify-center ${
-              hasCustomBg ? "apple-glass-static" : "bg-bg-panel"
-            }`}
-          >
-            <HeartFill
-              size={26}
-              className={hasCustomBg ? "text-white" : "text-zinc-400 dark:text-zinc-500"}
+          <div className="relative h-[48px] w-[48px] shrink-0 overflow-hidden rounded-md">
+            <img
+              src={likesCover}
+              alt=""
+              draggable={false}
+              className="h-full w-full object-cover select-none"
             />
           </div>
 
@@ -88,7 +94,6 @@ function LikesPlaylistCard({
             <h3
               className="m-0 max-w-[min(52vw,560px)] overflow-hidden text-ellipsis whitespace-nowrap text-[16px] leading-[1.2] text-text-primary"
               style={{
-                fontFamily: "var(--font-inter), sans-serif",
                 fontWeight: 400,
               }}
             >
@@ -97,7 +102,6 @@ function LikesPlaylistCard({
             <p
               className="m-0 flex min-w-0 items-center text-[15px] leading-[1.2] overflow-hidden text-text-secondary"
               style={{
-                fontFamily: "var(--font-inter), sans-serif",
                 fontWeight: 350,
               }}
             >
@@ -119,14 +123,12 @@ function LikesPlaylistCard({
       className="group flex flex-col gap-[8px] cursor-pointer"
       draggable={false}
     >
-      <div
-        className={`relative aspect-square w-full overflow-hidden rounded-md flex items-center justify-center ${
-          hasCustomBg ? "apple-glass-static" : "bg-bg-panel"
-        }`}
-      >
-        <HeartFill
-          size={52}
-          className={hasCustomBg ? "text-white" : "text-zinc-400 dark:text-zinc-500"}
+      <div className="relative aspect-square w-full overflow-hidden rounded-md">
+        <img
+          src={likesCover}
+          alt=""
+          draggable={false}
+          className="h-full w-full object-cover select-none"
         />
       </div>
       <div className="flex flex-col gap-[4px]">
@@ -145,13 +147,14 @@ function LikesPlaylistCard({
   );
 }
 
-export default function LibraryPage() {
+function OnlineLibraryPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<LibraryTab>("playlists");
+  const likesCover = useLikesCover();
+  usePageBackdrop(likesCover, { blur: 56, dim: 0.22 });
+  const [activeTab, setActiveTab] = useState<LibraryTab>("all");
   const [stateByTab, setStateByTab] = useState<LibraryState>(initialState);
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [showTopFog, setShowTopFog] = useState(false);
   const [viewMode, setViewMode] = useState<LibraryViewMode>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("liner_library_view_mode");
@@ -180,13 +183,30 @@ export default function LibraryPage() {
     isLoading: playlistsLoading,
   } = usePlaylistsList();
 
-  const { data: albumItems = [] } = useExternalItems("album");
-  const { data: artistItems = [] } = useExternalItems("artist");
-  const { data: externalPlaylistItems = [] } = useExternalItems("playlist");
+  const { data: albumItems = [], isLoading: albumsLoading } =
+    useExternalItems("album");
+  const { data: artistItems = [], isLoading: artistsLoading } =
+    useExternalItems("artist");
+  const {
+    data: externalPlaylistItems = [],
+    isLoading: externalPlaylistsLoading,
+  } = useExternalItems("playlist");
+  const youtubeItems = useYoutubeLibraryItems();
+  const youtubePlaylistItems = useMemo(
+    () => youtubeItems.filter((item) => item.kind === "playlist"),
+    [youtubeItems],
+  );
+  const youtubeAlbumItems = useMemo(
+    () => youtubeItems.filter((item) => item.kind === "album"),
+    [youtubeItems],
+  );
+  const cachedVisibleOnline = useCachedTracksStore(
+    (state) => state.visibleOnline,
+  );
+  const showCachedSongs = cachedVisibleOnline;
   const { data: likedCount, isLoading: likedCountLoading } =
     useLikedTrackCount();
   const openCreatePlaylist = useModalStore((state) => state.openCreatePlaylist);
-  const hasCustomBg = useIsContentTransparent();
 
   const playlistItems: LibraryItemViewModel[] = useMemo(() => {
     if (!playlistsData) return [];
@@ -205,23 +225,40 @@ export default function LibraryPage() {
     }));
   }, [playlistsData, t]);
 
-  const initialLoading = playlistsLoading;
+  const initialLoading =
+    playlistsLoading ||
+    albumsLoading ||
+    artistsLoading ||
+    externalPlaylistsLoading;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const tab = params.get("tab") as LibraryTab | null;
-    if (tab && ["playlists", "albums", "artists"].includes(tab)) {
+    if (tab && ["all", "playlists", "albums", "artists"].includes(tab)) {
       setActiveTab(tab);
     }
   }, []);
 
   const filteredItems = useMemo(() => {
     let source: LibraryItemViewModel[];
-    if (activeTab === "playlists") {
-      source = [...playlistItems, ...externalPlaylistItems];
+    if (activeTab === "all") {
+      source = [
+        ...playlistItems,
+        ...externalPlaylistItems,
+        ...youtubePlaylistItems,
+        ...albumItems,
+        ...youtubeAlbumItems,
+        ...artistItems,
+      ];
+    } else if (activeTab === "playlists") {
+      source = [
+        ...playlistItems,
+        ...externalPlaylistItems,
+        ...youtubePlaylistItems,
+      ];
     } else if (activeTab === "albums") {
-      source = albumItems;
+      source = [...albumItems, ...youtubeAlbumItems];
     } else if (activeTab === "artists") {
       source = artistItems;
     } else {
@@ -231,8 +268,7 @@ export default function LibraryPage() {
       debouncedQuery.length === 0
         ? source
         : source.filter((item) => {
-            const haystack =
-              `${item.title} ${item.subtitle}`.toLowerCase();
+            const haystack = `${item.title} ${item.subtitle}`.toLowerCase();
             return haystack.includes(debouncedQuery);
           });
 
@@ -242,7 +278,9 @@ export default function LibraryPage() {
     debouncedQuery,
     playlistItems,
     externalPlaylistItems,
+    youtubePlaylistItems,
     albumItems,
+    youtubeAlbumItems,
     artistItems,
   ]);
 
@@ -342,6 +380,7 @@ export default function LibraryPage() {
   }, []);
 
   const importJob = useImportStore((state) => state.job);
+  const showsPlaylists = activeTab === "playlists" || activeTab === "all";
   const isImporting =
     Boolean(importJob) &&
     (importJob?.status === "queued" ||
@@ -353,24 +392,16 @@ export default function LibraryPage() {
     <div className="relative h-full w-full overflow-hidden">
       <div
         ref={scrollContainerRef}
-        onScroll={(event) => {
-          const next = event.currentTarget.scrollTop > 2;
-          setShowTopFog((prev) => (prev === next ? prev : next));
-        }}
-        className="h-full w-full overflow-y-auto bg-transparent pb-[80px]"
+        className="h-full w-full overflow-y-auto bg-transparent pb-(--page-inset-bottom)"
       >
-        <div className="sticky top-0 z-20 bg-transparent">
-
-          <div className="px-[32px] pt-[20px] pb-[10px]">
-            <h1
-              className="text-[26px] font-bold text-text-primary tracking-tight m-0 leading-tight"
-              style={{ fontFamily: "var(--font-inter), sans-serif" }}
-            >
+        <div className="relative z-20 bg-transparent">
+          <div className="px-[12px] pt-[36px] narrow:pt-[56px] pb-[10px]">
+            <h1 className="text-[26px] font-bold text-text-primary tracking-tight m-0 leading-tight">
               {t("library.title")}
             </h1>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-[10px] px-[32px] pb-[10px]">
+          <div className="flex flex-wrap items-center justify-between gap-[10px] px-[12px] pb-[10px]">
             <LibraryTabs activeTab={activeTab} onChange={setActiveTab} />
             <LibraryControls
               activeTab={activeTab}
@@ -384,29 +415,29 @@ export default function LibraryPage() {
               }
               viewMode={viewMode}
               onViewModeChange={handleViewModeChange}
+              onCreatePlaylist={
+                showsPlaylists ? () => openCreatePlaylist() : undefined
+              }
             />
           </div>
         </div>
 
-
-        <div className="px-[32px] pt-[4px] pb-[20px]">
+        <div className="px-[12px] pt-[4px] pb-[20px]">
           {activeTab === "playlists" && playlistsError ? (
             <div className="mb-[10px] text-[12px] text-accent-secondary">
               {t("playlist.error_loading")}
             </div>
           ) : null}
           {initialLoading ? (
-            <div className="flex items-center justify-center min-h-[50vh]">
-              <div className="h-[24px] w-[24px] animate-spin rounded-full border-[2px] border-text-tertiary border-t-text-secondary" />
-            </div>
+            <LibraryGridSkeleton viewMode={viewMode} />
           ) : (
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={`${activeTab}:${debouncedQuery || "all"}:${viewMode}`}
-                initial={{ opacity: 0, filter: "blur(4px)", y: 6 }}
-                animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
-                exit={{ opacity: 0, filter: "blur(4px)", y: -4 }}
-                transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.12, ease: "easeOut" }}
               >
                 <LibraryGrid
                   items={visibleItems}
@@ -417,7 +448,7 @@ export default function LibraryPage() {
                   viewMode={viewMode}
                   sentinelRef={sentinelRef}
                   prependNodes={
-                    activeTab === "playlists" && !hasSearchQuery
+                    showsPlaylists && !hasSearchQuery
                       ? [
                           <LikesPlaylistCard
                             key="likes-playlist-card"
@@ -427,6 +458,18 @@ export default function LibraryPage() {
                             onClick={() =>
                               navigate("/library/playlist?id=likes")
                             }
+                          />,
+                          ...(showCachedSongs
+                            ? [
+                                <CachedSongsCard
+                                  key="cached-songs-card"
+                                  viewMode={viewMode}
+                                />,
+                              ]
+                            : []),
+                          <LocalFilesCard
+                            key="local-files-card"
+                            viewMode={viewMode}
                           />,
                           ...(isImporting && importJob
                             ? [
@@ -446,22 +489,78 @@ export default function LibraryPage() {
           )}
         </div>
       </div>
-
-      {activeTab === "playlists" && (
-        <button
-          type="button"
-          onClick={() => openCreatePlaylist()}
-          title={t("library.create_playlist")}
-          aria-label={t("library.create_playlist")}
-          className={`absolute bottom-[20px] right-[24px] z-30 flex h-[44px] w-[44px] items-center justify-center rounded-[14px] ${
-            hasCustomBg
-              ? "apple-glass-prominent"
-              : "bg-btn-primary-bg text-btn-primary-text"
-          } hover:opacity-95 active:scale-[0.92] transition-all border-0 cursor-pointer select-none`}
-        >
-          <AddLine size={22} />
-        </button>
-      )}
     </div>
   );
+}
+
+function OfflineLibraryPage() {
+  const navigate = useNavigate();
+  const { t } = useTranslation();
+  const likesCover = useLikesCover();
+  usePageBackdrop(likesCover, { blur: 56, dim: 0.22 });
+  const source = useOfflineModeStore((state) => state.source);
+  const checking = useOfflineModeStore((state) => state.checking);
+  const { tracks: savedLikes, isLoading: savedLoading } = useSavedTracks();
+
+  return (
+    <div className="relative h-full w-full overflow-hidden">
+      <div className="h-full w-full overflow-y-auto bg-transparent pb-(--page-inset-bottom)">
+        <div className="px-[12px] pt-[36px] narrow:pt-[56px] pb-[10px]">
+          <h1
+            className="text-[26px] font-bold text-text-primary tracking-tight m-0 leading-tight"
+            style={{ fontFamily: "var(--font-inter), sans-serif" }}
+          >
+            {t("library.title")}
+          </h1>
+          <div
+            className="mt-[10px] flex flex-wrap items-center gap-[10px] text-[13px] text-text-secondary"
+            style={{ fontFamily: "var(--font-inter), sans-serif" }}
+          >
+            <span className="flex items-center gap-[8px]">
+              <WifiOffLine size={15} className="text-text-tertiary" />
+              {t(
+                source === "manual"
+                  ? "offline.library_status_manual"
+                  : "offline.library_status_auto",
+              )}
+            </span>
+            <button
+              type="button"
+              disabled={checking}
+              onClick={() => void goOnline()}
+              className="h-[28px] rounded-[9px] border-0 bg-black/[0.06] px-[12px] text-[12.5px] font-[500] text-text-primary transition-colors hover:bg-black/[0.1] disabled:cursor-default disabled:opacity-60 dark:bg-white/[0.1] dark:hover:bg-white/[0.15] cursor-pointer"
+            >
+              {checking
+                ? t("connectivity.retrying")
+                : t(
+                    source === "manual"
+                      ? "offline.go_online"
+                      : "offline.reconnect",
+                  )}
+            </button>
+          </div>
+        </div>
+
+        <div className="px-[12px] pt-[14px] pb-[20px]">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(165px,1fr))] gap-[24px] pb-[24px]">
+            <OfflineMixCard />
+            {savedLikes.length > 0 || savedLoading ? (
+              <LikesPlaylistCard
+                count={savedLikes.length}
+                isLoading={savedLoading}
+                onClick={() => navigate("/library/saved")}
+              />
+            ) : null}
+            <CachedSongsCard />
+            <LocalFilesCard />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function LibraryPage() {
+  const offline = useOfflineModeStore((state) => state.offline);
+  return offline ? <OfflineLibraryPage /> : <OnlineLibraryPage />;
 }

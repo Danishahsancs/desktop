@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { KawarpEngine } from "../engine/kawarpEngine";
 import { getCoverElement, useCoverElement } from "@/features/covers";
 
+export const KAWARP_RESIZE_SETTLE_MS = 300;
+export const KAWARP_RENDER_SCALE = 0.5;
+
 interface KawarpWrapperProps {
   src?: string;
   onLoad?: () => void;
@@ -69,28 +72,36 @@ export function KawarpWrapper({ src, onLoad, onError }: KawarpWrapperProps) {
     const canvas = canvasRef.current;
     if (!container || !canvas) return;
 
-    const updateSize = () => {
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const applySize = () => {
       const rect = container.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) return;
-      const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-      const width = Math.round(rect.width * dpr);
-      const height = Math.round(rect.height * dpr);
-
-      if (canvas.width !== width || canvas.height !== height) {
-        canvas.width = width;
-        canvas.height = height;
-        engineRef.current?.resize();
-      }
+      const width = Math.max(1, Math.round(rect.width * KAWARP_RENDER_SCALE));
+      const height = Math.max(1, Math.round(rect.height * KAWARP_RENDER_SCALE));
+      if (canvas.width === width && canvas.height === height) return;
+      canvas.width = width;
+      canvas.height = height;
+      engineRef.current?.resize();
     };
 
-    const resizeObserver = new ResizeObserver(updateSize);
+    const scheduleSize = () => {
+      if (settleTimer) clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => {
+        settleTimer = null;
+        applySize();
+      }, KAWARP_RESIZE_SETTLE_MS);
+    };
+
+    const resizeObserver = new ResizeObserver(scheduleSize);
     resizeObserver.observe(container);
-    window.addEventListener("resize", updateSize, { passive: true });
-    updateSize();
+    window.addEventListener("resize", scheduleSize, { passive: true });
+    applySize();
 
     return () => {
+      if (settleTimer) clearTimeout(settleTimer);
       resizeObserver.disconnect();
-      window.removeEventListener("resize", updateSize);
+      window.removeEventListener("resize", scheduleSize);
     };
   }, []);
 
@@ -125,7 +136,7 @@ export function KawarpWrapper({ src, onLoad, onError }: KawarpWrapperProps) {
     >
       <canvas
         ref={canvasRef}
-        className={`absolute inset-0 w-full h-full block transition-opacity duration-500 ${
+        className={`absolute inset-0 block h-full w-full transition-opacity duration-500 ${
           loaded ? "opacity-100" : "opacity-0"
         }`}
       />

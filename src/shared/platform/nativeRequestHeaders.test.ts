@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rewriteServiceHeaders } from "./nativeRequestHeaders";
+import { rewriteServiceHeaders, withBrowserEmptyBody } from "./nativeRequestHeaders";
 
 // must match electron/main.ts onBeforeSendHeaders, which the innertube client relies on
 describe("rewriteServiceHeaders", () => {
@@ -33,5 +33,21 @@ describe("rewriteServiceHeaders", () => {
     );
     expect(rewriteServiceHeaders("https://api.tryliner.fun/v1/me", new Headers())).toBeNull();
     expect(rewriteServiceHeaders("https://evil-youtube.com.example/x", new Headers())).toBeNull();
+  });
+});
+
+describe("withBrowserEmptyBody", () => {
+  it("gives a body-less POST an empty text body like a browser would", () => {
+    const out = withBrowserEmptyBody({ method: "POST", headers: { authorization: "Bearer x" } })!;
+    expect(out.body).toBe("");
+    const headers = new Headers(out.headers);
+    expect(headers.get("content-type")).toBe("text/plain;charset=UTF-8");
+    expect(headers.get("authorization")).toBe("Bearer x");
+  });
+
+  it("leaves GETs and requests that already have a body alone", () => {
+    expect(withBrowserEmptyBody({ method: "GET" })).toBeNull();
+    expect(withBrowserEmptyBody(undefined)).toBeNull();
+    expect(withBrowserEmptyBody({ method: "POST", body: "{}" })).toBeNull();
   });
 });

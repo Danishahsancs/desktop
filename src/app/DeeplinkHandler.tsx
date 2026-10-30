@@ -6,14 +6,6 @@ import { playerEngine } from "@/features/player";
 import { isNativeApp } from "@/shared/platform";
 import { parseDeeplink, type DeeplinkTarget } from "../../electron/deeplink";
 
-// user playlist ids are uuids or pl- tokens, everything else is a catalog id
-function isUserPlaylistId(id: string): boolean {
-  return (
-    id.startsWith("pl-") ||
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
-  );
-}
-
 // opens shared entities arriving via liner:// deeplinks. on desktop main
 // pre-validates; on android the raw intent url is validated here with the same
 // parser.

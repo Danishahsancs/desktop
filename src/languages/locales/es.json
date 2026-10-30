@@ -64,6 +64,9 @@
     "coming_soon": "Próximamente",
     "play_all": "Reproducir todo",
     "add_to_queue": "Añadir a la cola",
+    "remove_from_queue": "Quitar de la cola",
+    "removed_from_queue": "Quitado de la cola",
+    "undo": "Deshacer",
     "shuffle": "Aleatorio",
     "remove_from_library": "Quitar de la biblioteca",
     "save_to_library": "Guardar en la biblioteca",
@@ -202,6 +205,7 @@
     "mostListened": "Más escuchado de todos los tiempos",
     "jumpBackIn": "Vuelve a escuchar",
     "popularAlbums": "Álbumes destacados",
+    "mostSaved": "Lo más guardado",
     "popularArtists": "Artistas en tendencia",
     "popularPlaylists": "Listas populares",
     "dailyMixes": "Mixes diarios",
@@ -214,9 +218,11 @@
     "songs": "canciones",
     "track": "canción",
     "tracks": "canciones",
+    "tab_all": "Todo",
     "tab_playlists": "Listas",
     "tab_albums": "Álbumes",
     "tab_artists": "Artistas",
+    "search_all": "Buscar en la biblioteca",
     "search_playlists": "Buscar listas",
     "search_albums": "Buscar álbumes",
     "search_artists": "Buscar artistas",
@@ -245,7 +251,6 @@
     "auth_subtitle_register": "Crea una cuenta y empieza a construir tu biblioteca personal.",
     "profile_setup_title": "Configura tu perfil",
     "profile_setup_subtitle": "Elige tu nombre de usuario único y nombre visible.",
-    "step_indicator": "Paso {step} de {total}",
     "btn_continue": "Continuar",
     "btn_back": "Atrás",
     "username_hint": "3-30 caracteres en minúsculas, números o guiones bajos.",
@@ -344,6 +349,13 @@
     }
   },
   "player": {
+    "mute": "Silenciar",
+    "unmute": "Activar sonido",
+    "decrease": "Disminuir",
+    "increase": "Aumentar",
+    "repeat_off": "Repetir: desactivado",
+    "repeat_all": "Repetir: todo",
+    "repeat_one": "Repetir: canción",
     "nothing_playing": "Nada en reproducción",
     "choose_track": "Elige una canción en la búsqueda",
     "queue": "Cola",
@@ -374,6 +386,8 @@
     "track_unavailable": "\"{title}\" no está disponible, pasando a la siguiente...",
     "track_unavailable_title": "Canción no disponible",
     "playback_stopped_too_many_errors": "Reproducción detenida: demasiadas canciones fallaron al cargar.",
+    "youtube_refused_title": "YouTube rechaza esta conexión",
+    "youtube_refused_description": "El audio de YouTube está bloqueado en esta red. Desactiva tu VPN o proxy, o prueba otra conexión.",
     "speed_pitch": "Velocidad y tono",
     "speed": "Velocidad",
     "pitch": "Tono",
@@ -390,7 +404,28 @@
     "preset_nightcore": "1.35x Nightcore",
     "reverb": "Reverberación",
     "reverb_hint": "Espacio atmosférico y profundidad ambiental",
-    "reverb_amount": "Reverberación"
+    "reverb_amount": "Reverberación",
+    "beta_visuals": {
+      "label": "Aviso",
+      "ambient_title": "Ambient está en beta",
+      "ambient_body": "Esta canción tiene un fondo animado propio. Sigue en beta y puede cargar los equipos modestos: si el reproductor va a tirones, elige un modo más ligero.",
+      "settings_title": "Calidad visual",
+      "settings_body": "Elige cuánta animación tiene el reproductor a pantalla completa. Los modos ligeros ahorran batería y van más fluidos en equipos modestos.",
+      "modes": {
+        "full": {
+          "name": "Todos los efectos",
+          "hint": "Todo activado, con bordes de la letra desenfocados"
+        },
+        "balanced": {
+          "name": "Equilibrado",
+          "hint": "Fondos animados, sin desenfoque en la letra"
+        },
+        "lite": {
+          "name": "Ligero",
+          "hint": "Portada fija, letra simple"
+        }
+      }
+    }
   },
   "playlist": {
     "playlist": "Lista de reproducción",
@@ -429,6 +464,9 @@
     "save_preferences": "Guardar preferencias",
     "groups": {
       "preferences": "Preferencias",
+      "player": "Reproductor",
+      "interface": "Interfaz",
+      "integrations": "Integraciones",
       "application": "Aplicación",
       "help": "Ayuda"
     },
@@ -438,14 +476,13 @@
     "tabs": {
       "general": "General",
       "appearance": "Apariencia",
-      "customization": "Personalización",
-      "audio": "Audio",
       "storage": "Caché y Almacenamiento",
       "system": "Sistema",
       "account": "Cuenta",
       "about": "Acerca de",
       "playback": "Reproducción",
       "overlay": "Superposición",
+      "discord": "Discord RPC",
       "privacy": "Privacidad",
       "shortcuts": "Atajos"
     },
@@ -482,43 +519,55 @@
         "description": "Mantiene el reproductor flotando por encima de otras ventanas."
       }
     },
-    "customization": {
-      "description": "Fondo de pantalla de la ventana, transparencia y efectos de desenfoque.",
-      "apply_to_overlay": "Aplicar al mini reproductor flotante",
-      "apply_to_overlay_desc": "Muestra el fondo personalizado y estilo cristal en el reproductor flotante.",
-      "dark_theme_only": "La personalización solo está disponible en el tema oscuro",
-      "wallpaper_title": "Fondo de la ventana",
-      "wallpaper_description": "Establece una imagen o GIF animado personalizado como fondo completo de la ventana.",
-      "upload_title": "Selecciona una imagen o GIF animado",
-      "upload_hint": "PNG, JPEG, GIF, WebP (hasta 30MB)",
-      "change_button": "Cambiar",
-      "remove_button": "Quitar",
-      "wallpaper_blur": "Desenfoque del fondo",
-      "wallpaper_dim": "Oscurecimiento del fondo",
-      "blocks_title": "Efecto cristal en bloques de interfaz",
-      "blocks_description": "Ajusta la transparencia, desenfoque de fondo y oscurecimiento para cada área.",
-      "block_sidebar": "Barra lateral",
-      "block_content": "Vista de contenido",
-      "block_miniplayer": "Mini reproductor",
-      "opacity": "Opacidad (transparencia)",
-      "opacity_desc": "Nivel de opacidad del fondo (mín. 25%)",
-      "blur": "Desenfoque de fondo",
-      "blur_desc": "Intensidad del efecto de cristal esmerilado",
-      "dim": "Oscurecimiento",
-      "dim_desc": "Capa oscura para mejorar la legibilidad",
-      "apply_all": "A todos",
-      "apply_all_title": "Aplicar ajustes a todos los bloques",
-      "applied_to_all": "Ajustes aplicados a todos los bloques",
-      "reset_block": "Restablecer",
-      "block_reset": "Ajustes de bloque restablecidos",
-      "reset_all": "Restablecer toda la personalización",
-      "reset_all_desc": "Restaura la apariencia predeterminada, borra la imagen de fondo y los efectos de cristal.",
-      "all_reset": "Toda la personalización ha sido restablecida",
-      "applied": "Fondo de pantalla aplicado",
-      "removed": "Fondo de pantalla quitado",
-      "invalid_file_type": "Por favor, selecciona un archivo de imagen o GIF válido",
-      "file_too_large": "El tamaño del archivo debe ser inferior a 30 MB",
-      "read_error": "Error al leer el archivo de imagen"
+    "discord": {
+      "description": "Muestra lo que estás escuchando en Discord con carátula, foto del artista y barra de progreso.",
+      "section_display": "Opciones de visualización",
+      "section_buttons": "Botones de perfil",
+      "enable": {
+        "title": "Discord Rich Presence",
+        "description": "Transmite tu música en reproducción activa a tu perfil de Discord."
+      },
+      "status_display": {
+        "title": "Línea de estado",
+        "description": "Elige qué se muestra en la cabecera 'Escuchando a...' de Discord.",
+        "artist": "Artista (Por defecto)",
+        "song": "Canción",
+        "artist_song": "Artista - Canción",
+        "song_artist": "Canción - Artista",
+        "app": "Liner (Nombre de app)"
+      },
+      "show_timeline": {
+        "title": "Línea de tiempo de reproducción",
+        "description": "Muestra una barra de progreso interactiva con el tiempo transcurrido y restante."
+      },
+      "show_artwork": {
+        "title": "Carátula de la canción",
+        "description": "Muestra la carátula de la pista o álbum en la tarjeta de actividad de Discord."
+      },
+      "show_artist_image": {
+        "title": "Insignia con foto del artista",
+        "description": "Muestra la foto del artista en una pequeña insignia circular en la esquina inferior."
+      },
+      "show_paused": {
+        "title": "Mostrar en pausa",
+        "description": "Mantiene el estado visible en Discord con un indicador de pausa al pausar la música."
+      },
+      "show_button": {
+        "title": "Botón 'Escuchar en Liner'",
+        "description": "Añade un botón interactivo con enlace a la canción en Liner."
+      },
+      "show_download_button": {
+        "title": "Botón 'Descargar Liner'",
+        "description": "Añade un botón interactivo que enlaza a tryliner.fun para descargar la aplicación."
+      },
+      "status": {
+        "connected": "Conectado a Discord ({user})",
+        "disconnected": "Discord no conectado",
+        "ready": "Listo",
+        "waiting": "Esperando a Discord",
+        "disabled": "Desactivado",
+        "via_arrpc": "Conectado mediante arRPC"
+      }
     },
     "audio_data": {
       "description": "Calidad de streaming, caché local y diagnóstico de conexión."
@@ -616,13 +665,16 @@
         "covers": "Carátulas de álbum",
         "audio": "Pistas de audio",
         "lyrics": "Letras",
-        "metadata": "Catálogo y búsqueda"
-      }
+        "metadata": "Catálogo y búsqueda",
+        "local": "Música local"
+      },
+      "local_confirm_title": "¿Borrar también tu música local?",
+      "local_confirm_desc": "La música local es tu biblioteca importada, no caché. Se borrarán de Liner {tracks} ({size}), junto con sus portadas y letras. Tus archivos originales se quedan donde están.",
+      "local_confirm_button": "Borrar música local"
     },
     "theme": {
       "title": "Tema",
       "description": "Elige la apariencia general de la aplicación.",
-      "disabled_for_glass": "El tema claro se desactiva cuando se usa el fondo personalizado con efecto cristal.",
       "light": "Claro",
       "dark": "Oscuro",
       "system": "Sistema"
@@ -645,8 +697,6 @@
       "vhs": "Chrome"
     },
     "audio": {
-      "title": "Calidad de streaming",
-      "description": "Selecciona la calidad de audio predeterminada para la reproducción.",
       "pause_on_device_change": {
         "title": "Pausar al cambiar de dispositivo",
         "description": "Pausa automáticamente la reproducción cuando cambia el dispositivo de salida de audio."
@@ -654,11 +704,7 @@
       "download_current_song": {
         "title": "Descargar canción actual",
         "description": "Descarga la canción en reproducción como un archivo MP3."
-      },
-      "low": "Calidad baja (Ahorro de datos)",
-      "standard": "Calidad estándar (Opus 64kbps / MP3 128kbps)",
-      "high": "Calidad alta (AAC 256kbps)",
-      "lossless": "Sin pérdida (FLAC/ALAC) - No disponible"
+      }
     },
     "profile": {
       "title": "Perfil",
@@ -719,7 +765,7 @@
     "about": {
       "liner": "Liner",
       "telegram": "Canal",
-      "support": "Soporte",
+      "discord": "Discord",
       "github": "GitHub",
       "website": "Sitio web",
       "tagline": "Moderno reproductor de música en streaming con letras sincronizadas por sílabas",
@@ -753,15 +799,6 @@
       "license_notice": "Distribuido bajo la licencia Liner Source-Available & Non-Commercial."
     },
     "connection": {
-      "title": "Conexión",
-      "description": "Ejecuta todas las pruebas de conectividad y guarda el informe de diagnóstico.",
-      "checks_title": "Informe de conectividad",
-      "button": "Ejecutar pruebas y guardar",
-      "checking": "Comprobando…",
-      "saved": "Informe guardado. Adjúntalo en tu mensaje de soporte.",
-      "failed": "No se pudo guardar el informe.",
-      "never_run": "Las pruebas aún no se han ejecutado.",
-      "last_run": "{ok}/{total} pruebas superadas · {time}",
       "open_folder": "Abrir carpeta de guardado"
     },
     "shortcuts": {
@@ -796,8 +833,6 @@
       "search_desc": "Abre rápidamente el cuadro de búsqueda.",
       "toggle_queue": "Cola",
       "toggle_queue_desc": "Abre o cierra el panel de la cola de reproducción.",
-      "toggle_lyrics": "Letras",
-      "toggle_lyrics_desc": "Abre o cierra el panel de letras sincronizadas.",
       "toggle_fullscreen": "Pantalla completa / Vista del reproductor",
       "toggle_fullscreen_desc": "Alterna la vista inmersiva del reproductor a pantalla completa.",
       "like_track": "Me gusta / Quitar me gusta",
@@ -944,12 +979,7 @@
     "check_trace": "Traza de ruta",
     "check_platform": "Plataforma",
     "check_main": "Comprobaciones de escritorio",
-    "copy_dump": "Copiar informe",
-    "dump_copied": "Informe copiado. Pégalo en tu mensaje de soporte.",
-    "dump_copy_failed": "No se pudo acceder al portapapeles.",
-    "download_dump": "Guardar informe",
     "support": "Contactar soporte",
-    "support_hint": "Adjunta el archivo del informe para que el equipo de soporte tenga toda la información.",
     "wall_title_server": "Los servidores de Liner tienen problemas",
     "wall_subtitle_server": "Tu conexión está bien, el servidor respondió con un error. Tu música y tu biblioteca están a salvo, inténtalo de nuevo en unos minutos."
   },
@@ -964,5 +994,20 @@
     "downloaded_desc": "Reinicia Liner para instalar la versión {version}.",
     "install_button": "Instalar",
     "error_title": "Error en la actualización"
+  },
+  "track_search": {
+    "placeholder_playlist": "Buscar en la playlist",
+    "placeholder_album": "Buscar en el álbum",
+    "count": "{count} de {total}",
+    "no_results": "Ninguna canción coincide con «{query}»",
+    "clear": "Borrar búsqueda"
+  },
+  "track_sort": {
+    "label": "Ordenar",
+    "default": "Predeterminado",
+    "added": "Por fecha de adición",
+    "title": "Por título (A–Z)",
+    "duration": "Por duración",
+    "popularity": "Por popularidad"
   }
 }

@@ -1,287 +1,111 @@
-import { useState, useRef, useCallback } from "react";
-import { useLocation } from "react-router-dom";
-import {
-  SkipNext,
-  SkipPrevious,
-  MusicNote,
-  Repeat,
-  RepeatOne,
-  Shuffle,
-} from "@solar-icons/react";
-import { AddLine, CheckFill } from "@mingcute/react";
-import {
-  PlayerMorphIcon,
-  ICON_PLAY,
-  ICON_PAUSE,
-} from "./morphPlayerIcons";
-import { usePlayerState } from "../hooks/usePlayerState";
-import { playerEngine } from "../engine/playerEngine";
-import { useIsTrackLiked, useLikeTrack, useUnlikeTrack } from "@/features/library/hooks";
-import { AnimatePresence, motion } from "framer-motion";
-import { ArtistLink } from "@/features/artist";
-import { useCoverReady, CoverImage } from "@/features/covers";
-import ExplicitBadge from "@/shared/ui/ExplicitBadge";
-import Tooltip from "@/shared/ui/Tooltip";
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { cn } from "@/shared/lib";
 import { VolumePicker } from "./VolumePicker";
-import { TimelineSlider } from "./TimelineSlider";
+import { FullscreenCoverArt } from "./FullscreenCoverArt";
+import { FullscreenTrackInfo } from "./FullscreenTrackInfo";
+import { FullscreenTimeline } from "./FullscreenTimeline";
+import { FullscreenTransportControls } from "./FullscreenTransportControls";
+import {
+  BASE_COLUMN_WIDTH,
+  fullscreenColumnScale,
+} from "../lib/fullscreenScale";
+import { useWindowState } from "@/features/navigation/hooks/useWindowState";
 
-import { useTranslation } from "@/languages";
+function useFullscreenColumnScale(): number {
+  const { isEdgeToEdge } = useWindowState();
+  const [scale, setScale] = useState(1);
 
-const iconButtonClass =
-  "inline-flex h-[28px] w-[28px] items-center justify-center text-white opacity-70 transition-all duration-150 ease-out hover:opacity-100 active:scale-[0.94] shrink-0 border-none bg-transparent cursor-pointer";
+  useEffect(() => {
+    if (!isEdgeToEdge) {
+      setScale(1);
+      return;
+    }
+    const update = () =>
+      setScale(fullscreenColumnScale(window.innerWidth, window.innerHeight));
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, [isEdgeToEdge]);
 
-function PlayPauseIcon({ status }: { status: string }) {
-  const loading = status === "loading";
-  const playing = status === "playing";
-  // keep the morph icon mounted through the loading state (spinner overlays
-  // it) — unmounting the icon on "loading" would remount MorphIcon when the
-  // track starts, which skips the play -> pause morph animation.
-  return (
-    <span className="relative flex h-[22px] w-[22px] items-center justify-center">
-      <span
-        className={`absolute inset-0 flex items-center justify-center ${
-          loading ? "opacity-0" : ""
-        } transition-transform ${playing ? "" : "translate-x-[1px]"}`}
-      >
-        <PlayerMorphIcon
-          icon={playing ? ICON_PAUSE : ICON_PLAY}
-          size={22}
-        />
-      </span>
-      {loading && (
-        <span
-          className="absolute h-[18px] w-[18px] animate-spin rounded-full border-[2px] border-current border-t-transparent"
-          aria-label="Loading playback"
-        />
-      )}
-    </span>
-  );
+  return scale;
 }
 
 interface PlayerUiElementsProps {
   onDuration?: (duration: number) => void;
   onClose?: () => void;
+  layout?: "vertical" | "horizontal";
 }
 
+const LAYOUT_TRANSITION = {
+  duration: 0.5,
+  ease: [0.22, 1, 0.36, 1],
+} as const;
+
 export function PlayerUiElements({
-  onDuration: _onDuration,
   onClose,
+  layout = "vertical",
 }: PlayerUiElementsProps) {
-  const player = usePlayerState();
-
-  const track = player.currentTrack;
-  const coverUrl = track?.coverUrl || "";
-  const trackTitle = track?.title || "";
-  const trackArtists = track?.artists || "";
-
-  const isLiked = useIsTrackLiked(track?.id);
-  const likeMutation = useLikeTrack();
-  const unlikeMutation = useUnlikeTrack();
-  const togglingRef = useRef(false);
-
-  const handleLikeToggle = useCallback(() => {
-    if (!track || togglingRef.current) return;
-    togglingRef.current = true;
-    const onSettled = () => {
-      togglingRef.current = false;
-    };
-    if (isLiked) {
-      unlikeMutation.mutate(track.id, { onSettled });
-    } else {
-      likeMutation.mutate(track.id, { onSettled });
-    }
-  }, [track, isLiked, likeMutation, unlikeMutation]);
-
-  const isCoverLoaded = useCoverReady(coverUrl);
-
-  const { t } = useTranslation();
+  const scale = useFullscreenColumnScale();
+  const scaled = scale > 1;
+  const horizontal = layout === "horizontal";
+  const columnWidth = Math.round(BASE_COLUMN_WIDTH * scale);
+  const columnStyle = scaled ? { width: columnWidth } : undefined;
+  const columnClass = cn(
+    "min-w-[240px]",
+    !scaled &&
+      (horizontal
+        ? "w-[min(360px,34vw,calc(100vh-200px))]"
+        : "w-[min(340px,32vw,calc(100vh-340px))]"),
+  );
 
   return (
-    <>
-      {/* Artwork (Compact, flat, no drop shadows) */}
-      <div
-        className={`relative shrink-0 overflow-hidden rounded-xl w-[280px] h-[280px] compact:w-[var(--np)] compact:h-[var(--np)] short:row-span-4 bg-black/20 ${
-          coverUrl && !isCoverLoaded ? "animate-pulse" : ""
-        }`}
+    <motion.div
+      layout
+      transition={LAYOUT_TRANSITION}
+      className={cn(
+        "flex",
+        horizontal ? "flex-row items-stretch gap-[56px]" : "flex-col",
+        !horizontal && columnClass,
+      )}
+      style={horizontal ? undefined : columnStyle}
+    >
+      <motion.div
+        layout
+        transition={LAYOUT_TRANSITION}
+        className={cn("relative", horizontal && "aspect-square shrink-0")}
       >
-        <AnimatePresence>
-          <motion.div
-            key={track?.id || coverUrl || "empty"}
-            initial={{ opacity: 0, filter: "blur(8px)" }}
-            animate={{ opacity: 1, filter: "blur(0px)" }}
-            exit={{ opacity: 0, filter: "blur(8px)" }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="absolute inset-0"
-          >
-            {coverUrl ? (
-              <CoverImage
-                key={coverUrl}
-                src={coverUrl}
-                alt={trackTitle}
-                fill
-                sizes="280px"
-                priority
-                unoptimized
-                className="rounded-xl object-cover"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center bg-white/5 text-white/40">
-                <MusicNote size={64} />
-              </div>
-            )}
-          </motion.div>
-        </AnimatePresence>
-        {/* tooltip wrapper positioned on cover corner */}
-        <Tooltip
-          content={isLiked ? t("common.unlike") : t("common.like")}
-          side="top"
-          wrapperClassName="!absolute bottom-2.5 left-2.5 z-20"
-        >
-          <button
-            type="button"
-            aria-label={isLiked ? t("common.unlike") : t("common.like")}
-            className={`relative inline-flex h-[30px] w-[30px] items-center justify-center rounded-full transition-all duration-200 ease-out active:scale-[0.92] bg-black/40 backdrop-blur-md border-none ${
-              isLiked
-                ? "text-white hover:bg-black/60"
-                : "text-white/70 hover:text-white hover:bg-black/60"
-            }`}
-            onClick={handleLikeToggle}
-            style={{ cursor: "pointer" }}
-          >
-            <motion.div
-              initial={false}
-              animate={{
-                scale: isLiked ? 1 : 0.5,
-                opacity: isLiked ? 1 : 0,
-                rotate: isLiked ? 0 : -45,
-              }}
-              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-              className="absolute inset-0 flex items-center justify-center"
-            >
-              <CheckFill size={16} />
-            </motion.div>
-            <motion.div
-              initial={false}
-              animate={{
-                scale: !isLiked ? 1 : 0.5,
-                opacity: !isLiked ? 1 : 0,
-                rotate: !isLiked ? 0 : 45,
-              }}
-              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-              className="absolute inset-0 flex items-center justify-center"
-            >
-              <AddLine size={16} />
-            </motion.div>
-          </button>
-        </Tooltip>
-      </div>
+        <FullscreenCoverArt sizes={`${columnWidth}px`} />
+      </motion.div>
 
-      {/* Track info */}
-      <div className="w-[280px] compact:w-[var(--np)] short:w-full flex items-start justify-center min-w-0">
-        <div className="flex flex-col gap-[2px] min-w-0 text-center">
-          <p
-            className="m-0 text-[15px] compact:text-[19px] font-[600] text-white flex items-center justify-center gap-[6px] max-w-[280px] compact:max-w-full"
-            style={{ letterSpacing: "-0.03em" }}
-          >
-            <span className="min-w-0 truncate">{trackTitle}</span>
-          </p>
-          <p className="m-0 flex items-center justify-center gap-[5px] text-[12px] compact:text-[14px] text-white/60 leading-snug max-w-[320px] compact:max-w-full overflow-hidden">
-            {track?.explicit && (
-              <ExplicitBadge className="!bg-white/60 !text-black !pb-0 !leading-none shrink-0" />
-            )}
-            <ArtistLink
-              name={trackArtists}
-              artistId={track?.artistId}
-              artistList={track?.artistList}
-              onNavigate={() => {
-                if (location.pathname !== "/player") {
-                  onClose?.();
-                }
-              }}
-              className="text-white/60"
-            />
-          </p>
+      <motion.div
+        layout="position"
+        transition={LAYOUT_TRANSITION}
+        className={cn("flex flex-col", horizontal && columnClass)}
+        style={horizontal ? columnStyle : undefined}
+      >
+        <div className={horizontal ? undefined : "mt-[24px]"}>
+          <FullscreenTrackInfo onClose={onClose} />
         </div>
-      </div>
 
-      {/* Timeline (Compact, with smooth spring pill, no thumb) */}
-      <TimelineSlider
-        positionMs={player.positionMs}
-        durationMs={player.durationMs}
-        onSeek={(pos) => playerEngine.seek(pos)}
-        showTime
-        size="md"
-        className="w-[320px] compact:w-[var(--np)] short:w-full"
-      />
+        <div className="mt-[22px]">
+          <FullscreenTimeline />
+        </div>
 
-      {/* Primary Playback Controls */}
-      <div className="flex items-center gap-[14px] compact:gap-[20px] compact:scale-[1.3] compact:my-[6px] short:scale-[1.1] short:my-0">
-        <button
-          type="button"
-          aria-label="Shuffle"
-          title={player.shuffle ? t("player.shuffle_on") : t("player.shuffle_off")}
-          onClick={() => playerEngine.setShuffle(!player.shuffle)}
-          className={`${iconButtonClass} ${
-            player.shuffle ? "!text-white !opacity-100" : "!text-white/40"
-          }`}
-        >
-          <Shuffle size={18} weight={player.shuffle ? "Bold" : "Outline"} />
-        </button>
+        <div className="mt-[20px]">
+          <FullscreenTransportControls />
+        </div>
 
-        <button
-          type="button"
-          aria-label="Previous track"
-          onClick={() => void playerEngine.skipPrevious()}
-          className={iconButtonClass}
-        >
-          <SkipPrevious size={20} weight="Bold" />
-        </button>
-
-        <button
-          type="button"
-          aria-label={player.status === "playing" ? "Pause" : "Play"}
-          onClick={() => void playerEngine.togglePlayPause()}
-          className="inline-flex h-[36px] w-[36px] items-center justify-center text-white opacity-85 transition-all duration-150 ease-out hover:opacity-100 active:scale-[0.94] shrink-0 border-none bg-transparent cursor-pointer"
-        >
-          <PlayPauseIcon status={player.status} />
-        </button>
-
-        <button
-          type="button"
-          aria-label="Next track"
-          onClick={() => void playerEngine.skipNext()}
-          className={iconButtonClass}
-        >
-          <SkipNext size={20} weight="Bold" />
-        </button>
-
-        <button
-          type="button"
-          aria-label="Repeat"
-          onClick={() =>
-            playerEngine.setRepeat(
-              player.repeat === "off"
-                ? "all"
-                : player.repeat === "all"
-                  ? "one"
-                  : "off",
-            )
-          }
-          className={`${iconButtonClass} ${
-            player.repeat !== "off" ? "!text-white !opacity-100" : "!text-white/40"
-          }`}
-        >
-          {player.repeat === "one" ? (
-            <RepeatOne size={18} />
-          ) : (
-            <Repeat size={18} />
-          )}
-        </button>
-      </div>
-
-      {/* Volume (Compact smooth slider, size sm) */}
-      <VolumePicker className="w-[180px] compact:w-[min(var(--np),240px)]" size="sm" />
-    </>
+        <div className="mt-[22px] flex justify-center">
+          <VolumePicker
+            className="w-[60%]"
+            size="sm"
+            iconSize={22}
+            iconClassName="text-white opacity-80 hover:opacity-100"
+          />
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 

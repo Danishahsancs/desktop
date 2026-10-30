@@ -64,6 +64,9 @@
     "coming_soon": "Yakında",
     "play_all": "Tümünü çal",
     "add_to_queue": "Sıraya ekle",
+    "remove_from_queue": "Sıradan kaldır",
+    "removed_from_queue": "Sıradan kaldırıldı",
+    "undo": "Geri al",
     "shuffle": "Karıştır",
     "remove_from_library": "Kitaplıktan kaldır",
     "save_to_library": "Kitaplığa kaydet",
@@ -200,6 +203,7 @@
     "mostListened": "Tüm zamanların en çok dinlenenleri",
     "jumpBackIn": "Kaldığın yerden devam et",
     "popularAlbums": "En İyi Albümler",
+    "mostSaved": "En çok kaydedilenler",
     "popularArtists": "Trend Sanatçılar",
     "popularPlaylists": "Popüler Çalma Listeleri",
     "dailyMixes": "Günlük Mixler",
@@ -212,9 +216,11 @@
     "songs": "şarkı",
     "track": "parça",
     "tracks": "parça",
+    "tab_all": "Tümü",
     "tab_playlists": "Çalma listeleri",
     "tab_albums": "Albümler",
     "tab_artists": "Sanatçılar",
+    "search_all": "Kitaplıkta ara",
     "search_playlists": "Çalma listelerinde ara",
     "search_albums": "Albümlerde ara",
     "search_artists": "Sanatçılarda ara",
@@ -243,7 +249,6 @@
     "auth_subtitle_register": "Bir hesap oluştur ve kişisel kitaplığını kurmaya başla.",
     "profile_setup_title": "Profilini ayarla",
     "profile_setup_subtitle": "Benzersiz kullanıcı adını ve görünen adını seç.",
-    "step_indicator": "Adım {step} / {total}",
     "btn_continue": "Devam",
     "btn_back": "Geri",
     "username_hint": "3-30 karakter: küçük harf, rakam veya alt çizgi.",
@@ -342,6 +347,13 @@
     }
   },
   "player": {
+    "mute": "Sesi kapat",
+    "unmute": "Sesi aç",
+    "decrease": "Azalt",
+    "increase": "Artır",
+    "repeat_off": "Tekrar: kapalı",
+    "repeat_all": "Tekrar: tümü",
+    "repeat_one": "Tekrar: parça",
     "nothing_playing": "Çalan bir şey yok",
     "choose_track": "Aramadan bir parça seç",
     "queue": "Sıra",
@@ -372,6 +384,8 @@
     "track_unavailable": "\"{title}\" kullanılamıyor, atlanıyor...",
     "track_unavailable_title": "Parça kullanılamıyor",
     "playback_stopped_too_many_errors": "Çalma durduruldu: çok fazla parça yüklenemedi.",
+    "youtube_refused_title": "YouTube bu bağlantıyı reddediyor",
+    "youtube_refused_description": "YouTube sesi bu ağda engelleniyor. VPN'i veya proxy'yi kapatın ya da başka bir bağlantı deneyin.",
     "speed_pitch": "Hız ve Perde",
     "speed": "Hız",
     "pitch": "Perde",
@@ -388,7 +402,28 @@
     "preset_nightcore": "1.35x Nightcore",
     "reverb": "Yankı",
     "reverb_hint": "Atmosferik alan ve ortam derinliği",
-    "reverb_amount": "Yankı"
+    "reverb_amount": "Yankı",
+    "beta_visuals": {
+      "label": "Uyarı",
+      "ambient_title": "Ambient beta aşamasında",
+      "ambient_body": "Bu parçanın kendine ait animasyonlu bir arka planı var. Hâlâ beta aşamasında ve zayıf cihazları yorabilir; oynatıcı takılırsa daha hafif bir mod seç.",
+      "settings_title": "Görsel kalite",
+      "settings_body": "Tam ekran oynatıcının ne kadar hareketli olacağını seç. Hafif modlar pil tasarrufu sağlar ve zayıf cihazlarda daha akıcı çalışır.",
+      "modes": {
+        "full": {
+          "name": "Tüm efektler",
+          "hint": "Her şey açık, bulanık söz kenarları dahil"
+        },
+        "balanced": {
+          "name": "Dengeli",
+          "hint": "Hareketli arka planlar, söz bulanıklığı yok"
+        },
+        "lite": {
+          "name": "Hafif",
+          "hint": "Sabit kapak, sade sözler"
+        }
+      }
+    }
   },
   "playlist": {
     "playlist": "Çalma listesi",
@@ -426,6 +461,9 @@
     "save_preferences": "Tercihleri kaydet",
     "groups": {
       "preferences": "Tercihler",
+      "player": "Oynatıcı",
+      "interface": "Arayüz",
+      "integrations": "Entegrasyonlar",
       "application": "Uygulama",
       "help": "Yardım"
     },
@@ -435,8 +473,6 @@
     "tabs": {
       "general": "Genel",
       "appearance": "Görünüm",
-      "customization": "Özelleştirme",
-      "audio": "Ses",
       "storage": "Önbellek ve Depolama",
       "system": "Sistem",
       "account": "Hesap",
@@ -481,8 +517,6 @@
       "search_desc": "Arama penceresini hızlıca açar.",
       "toggle_queue": "Sıra",
       "toggle_queue_desc": "Çalma sırası panelini açar veya kapatır.",
-      "toggle_lyrics": "Şarkı sözleri",
-      "toggle_lyrics_desc": "Senkronize şarkı sözleri panelini açar veya kapatır.",
       "toggle_fullscreen": "Tam ekran / Oynatıcı görünümü",
       "toggle_fullscreen_desc": "Sürükleyici tam ekran oynatıcı görünümünü açar veya kapatır.",
       "like_track": "Beğen / Vazgeç",
@@ -537,45 +571,6 @@
         "description": "Katmanı diğer pencerelerin üstünde tutar."
       }
     },
-    "customization": {
-      "description": "Pencere duvar kâğıdı, saydamlık ve blok bulanıklaştırma efektleri.",
-      "apply_to_overlay": "Katmandaki mini oynatıcıya uygula",
-      "apply_to_overlay_desc": "Özel arka planı ve cam efektini yüzen mini oynatıcıda da kullanır.",
-      "dark_theme_only": "Özelleştirme yalnızca koyu temada kullanılabilir",
-      "wallpaper_title": "Pencere Duvar Kâğıdı",
-      "wallpaper_description": "Tüm pencerenin arka planı olarak özel bir görsel veya hareketli GIF ayarla.",
-      "upload_title": "Görsel veya hareketli GIF seç",
-      "upload_hint": "PNG, JPEG, GIF, WebP (30 MB'a kadar)",
-      "change_button": "Değiştir",
-      "remove_button": "Kaldır",
-      "wallpaper_blur": "Duvar kâğıdı bulanıklığı",
-      "wallpaper_dim": "Duvar kâğıdı karartma",
-      "blocks_title": "Arayüz Bloklarında Cam Efekti",
-      "blocks_description": "Her arayüz alanı için saydamlığı, arka plan bulanıklığını ve karartmayı ayarla.",
-      "block_sidebar": "Kenar çubuğu",
-      "block_content": "İçerik alanı",
-      "block_miniplayer": "Mini oynatıcı",
-      "opacity": "Opaklık (saydamlık)",
-      "opacity_desc": "Arka plan opaklık düzeyi (en az %25)",
-      "blur": "Arka plan bulanıklığı",
-      "blur_desc": "Buzlu cam bulanıklığının yoğunluğu",
-      "dim": "Karartma",
-      "dim_desc": "Daha iyi okunabilirlik için koyu katman",
-      "apply_all": "Tümüne",
-      "apply_all_title": "Ayarları tüm bloklara uygula",
-      "applied_to_all": "Ayarlar tüm bloklara uygulandı",
-      "reset_block": "Sıfırla",
-      "block_reset": "Blok ayarları sıfırlandı",
-      "reset_all": "Tüm özelleştirmeyi sıfırla",
-      "reset_all_desc": "Varsayılan görünümü geri yükler, arka plan görselini ve blok cam efektlerini kaldırır.",
-      "all_reset": "Tüm özelleştirme sıfırlandı",
-      "applied": "Duvar kâğıdı uygulandı",
-      "removed": "Duvar kâğıdı kaldırıldı",
-      "invalid_file_type": "Lütfen bir görsel veya GIF dosyası seç",
-      "file_too_large": "Dosya boyutu 30 MB'tan küçük olmalı",
-      "read_error": "Görsel dosyası okunamadı"
-    },
-
     "audio_data": {
       "description": "Yayın kalitesi, çevrimdışı önbellek ve bağlantı tanılama."
     },
@@ -672,13 +667,16 @@
         "covers": "Kapak Görselleri",
         "audio": "Ses Parçaları",
         "lyrics": "Şarkı Sözleri",
-        "metadata": "Katalog ve Arama"
-      }
+        "metadata": "Katalog ve Arama",
+        "local": "Yerel Müzik"
+      },
+      "local_confirm_title": "Yerel müziğin de silinsin mi?",
+      "local_confirm_desc": "Yerel Müzik, içe aktardığın kitaplığındır, önbellek değil. {tracks} ({size}) kapakları ve sözleriyle birlikte Liner'dan silinecek. Orijinal dosyaların yerinde kalır.",
+      "local_confirm_button": "Yerel müziği sil"
     },
     "theme": {
       "title": "Tema",
       "description": "Uygulamanın genel görünümünü seç.",
-      "disabled_for_glass": "Özel duvar kâğıdıyla cam efekti kullanılırken açık tema devre dışıdır.",
       "light": "Açık",
       "dark": "Koyu",
       "system": "Sistem"
@@ -701,8 +699,6 @@
       "vhs": "Krom"
     },
     "audio": {
-      "title": "Yayın Kalitesi",
-      "description": "Çalma için varsayılan ses kalitesini seç.",
       "pause_on_device_change": {
         "title": "Cihaz değişince duraklat",
         "description": "Ses çıkış cihazı değiştiğinde çalmayı otomatik olarak duraklatır."
@@ -710,11 +706,7 @@
       "download_current_song": {
         "title": "Çalan şarkıyı indir",
         "description": "Çalan parçayı MP3 dosyası olarak indirir."
-      },
-      "low": "Düşük Kalite (Veri Tasarrufu)",
-      "standard": "Standart Kalite (Opus 64kbps / MP3 128kbps)",
-      "high": "Yüksek Kalite (AAC 256kbps)",
-      "lossless": "Kayıpsız (FLAC/ALAC) - Kullanılamıyor"
+      }
     },
     "profile": {
       "title": "Profil",
@@ -775,7 +767,7 @@
     "about": {
       "liner": "Liner",
       "telegram": "Kanal",
-      "support": "Destek",
+      "discord": "Discord",
       "github": "GitHub",
       "website": "Web sitesi",
       "tagline": "Hece hece senkronize şarkı sözleriyle modern masaüstü müzik yayın oynatıcısı",
@@ -809,15 +801,6 @@
       "license_notice": "Liner Source-Available & Non-Commercial Lisansı altında dağıtılır."
     },
     "connection": {
-      "title": "Bağlantı",
-      "description": "Tüm bağlantı testlerini çalıştır ve çevrimdışı raporu kaydet.",
-      "checks_title": "Çevrimdışı rapor",
-      "button": "Testleri çalıştır ve kaydet",
-      "checking": "Denetleniyor…",
-      "saved": "Rapor kaydedildi, destek mesajına ekle.",
-      "failed": "Rapor kaydedilemedi.",
-      "never_run": "Testler henüz çalıştırılmadı.",
-      "last_run": "{ok}/{total} test başarılı · {time}",
       "open_folder": "Kaydedilen konumu aç"
     }
   },
@@ -943,12 +926,7 @@
     "check_trace": "Rota izleme",
     "check_platform": "Platform",
     "check_main": "Masaüstü testleri",
-    "copy_dump": "Raporu kopyala",
-    "dump_copied": "Rapor kopyalandı, destek mesajına yapıştır.",
-    "dump_copy_failed": "Panoya erişilemedi.",
-    "download_dump": "Raporu kaydet",
-    "support": "Destekle iletişime geç",
-    "support_hint": "Destek ekibinin tüm resmi görebilmesi için kaydedilen rapor dosyasını ekle."
+    "support": "Destekle iletişime geç"
   },
   "updater": {
     "modal_title": "Yeni Güncelleme Var",
@@ -961,5 +939,20 @@
     "downloaded_desc": "{version} sürümünü yüklemek için Liner'ı yeniden başlat.",
     "install_button": "Yükle",
     "error_title": "Güncelleme başarısız"
+  },
+  "track_search": {
+    "placeholder_playlist": "Çalma listesinde ara",
+    "placeholder_album": "Albümde ara",
+    "count": "{count} / {total}",
+    "no_results": "“{query}” ile eşleşen parça yok",
+    "clear": "Aramayı temizle"
+  },
+  "track_sort": {
+    "label": "Sırala",
+    "default": "Varsayılan",
+    "added": "Eklenme tarihine göre",
+    "title": "Başlığa göre (A–Z)",
+    "duration": "Süreye göre",
+    "popularity": "Popülerliğe göre"
   }
 }

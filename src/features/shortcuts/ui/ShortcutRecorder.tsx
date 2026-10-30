@@ -1,11 +1,11 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ResetIcon } from "./ResetIcon";
+import { CloseCircleFill } from "@mingcute/react";
+
 import { useTranslation } from "@/languages";
 import {
   getEnglishKeyFromEvent,
   normalizeShortcutToEnglish,
-  formatAcceleratorForDisplay,
   getAcceleratorKeycaps,
   isMacPlatform,
 } from "../utils/shortcutMatching";
@@ -26,9 +26,7 @@ export interface ShortcutRecorderProps {
 
 export function ShortcutRecorder({
   value,
-  defaultValue,
   onChange,
-  onReset,
   isGlobal = false,
   validateCandidate,
   disabled = false,
@@ -40,14 +38,17 @@ export function ShortcutRecorder({
   const isControlled = isRecordingProp !== undefined;
   const isRecording = isControlled ? isRecordingProp : internalIsRecording;
 
-  const setIsRecording = (val: boolean | ((prev: boolean) => boolean)) => {
-    const nextVal = typeof val === "function" ? val(isRecording) : val;
-    if (isControlled) {
-      onRecordingChange?.(nextVal);
-    } else {
-      setInternalIsRecording(nextVal);
-    }
-  };
+  const setIsRecording = useCallback(
+    (val: boolean | ((prev: boolean) => boolean)) => {
+      const nextVal = typeof val === "function" ? val(isRecording) : val;
+      if (isControlled) {
+        onRecordingChange?.(nextVal);
+      } else {
+        setInternalIsRecording(nextVal);
+      }
+    },
+    [isRecording, isControlled, onRecordingChange],
+  );
 
   const [heldModifiers, setHeldModifiers] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -146,7 +147,10 @@ export function ShortcutRecorder({
           const conflictTemplate =
             t("settings.shortcuts.conflict_error") ||
             `Already used by "${conflict.conflictWith}"`;
-          const formatted = conflictTemplate.replace("{action}", conflict.conflictWith);
+          const formatted = conflictTemplate.replace(
+            "{action}",
+            conflict.conflictWith,
+          );
           triggerError(formatted);
           return;
         }
@@ -168,7 +172,10 @@ export function ShortcutRecorder({
 
     const handleMouseDown = (e: MouseEvent) => {
       if (isControlled) return;
-      if (recordButtonRef.current && !recordButtonRef.current.contains(e.target as Node)) {
+      if (
+        recordButtonRef.current &&
+        !recordButtonRef.current.contains(e.target as Node)
+      ) {
         setHeldModifiers([]);
         setErrorMessage(null);
         setIsRecording(false);
@@ -192,42 +199,18 @@ export function ShortcutRecorder({
       window.removeEventListener("mousedown", handleMouseDown, true);
       window.removeEventListener("blur", handleWindowBlur);
     };
-  }, [isRecording, isGlobal, validateCandidate, onChange, t, isControlled]);
-
-  const hasChanged = value !== defaultValue;
+  }, [
+    isRecording,
+    isGlobal,
+    validateCandidate,
+    onChange,
+    t,
+    isControlled,
+    setIsRecording,
+  ]);
 
   return (
-    <div className="relative flex items-center gap-1.5 shrink-0 h-[24px]">
-      {/* Per-row reset button hidden for now */}
-      {/*
-      <AnimatePresence>
-        {hasChanged && !disabled && (
-          <motion.button
-            type="button"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ duration: 0.1, ease: "easeOut" }}
-            aria-label={
-              t("settings.shortcuts.reset_tooltip", {
-                shortcut: formatAcceleratorForDisplay(defaultValue),
-              }) || `Reset to ${formatAcceleratorForDisplay(defaultValue)}`
-            }
-            onClick={(e) => {
-              e.stopPropagation();
-              setHeldModifiers([]);
-              setErrorMessage(null);
-              setIsRecording(false);
-              onReset();
-            }}
-            className="h-[24px] w-[24px] rounded-md border-0 outline-none flex items-center justify-center bg-border-alpha-14 hover:bg-border-alpha-20 text-text-tertiary hover:text-text-primary transition-colors cursor-pointer select-none active:scale-[0.95] p-0 shrink-0"
-          >
-            <ResetIcon size={12.5} className="-top-[0.62px] left-[0.3px]" style={{ top: "-0.62px", left: "0.3px" }} />
-          </motion.button>
-        )}
-      </AnimatePresence>
-      */}
-
+    <div className="relative flex items-center gap-1.5 shrink-0 h-[30px]">
       <button
         ref={recordButtonRef}
         type="button"
@@ -245,13 +228,12 @@ export function ShortcutRecorder({
             ? "opacity-50 cursor-not-allowed bg-transparent"
             : isRecording
               ? errorMessage
-                ? "h-[24px] px-2.5 rounded-md bg-rose-500/20 text-rose-300"
+                ? "h-[30px] px-[12px] rounded-[8px] bg-rose-700/90 text-white"
                 : heldModifiers.length > 0
-                  ? "h-[24px] px-2.5 rounded-md bg-border-alpha-24 text-text-primary"
-                  : "h-[24px] px-2.5 rounded-md bg-border-alpha-20 text-text-primary"
+                  ? "h-[30px] px-[12px] rounded-[8px] bg-black/[0.12] text-text-primary dark:bg-black/50"
+                  : "h-[30px] px-[12px] rounded-[8px] bg-black/[0.08] text-text-secondary dark:bg-black/40"
               : "bg-transparent p-0"
         }`}
-        style={{ fontFamily: "var(--font-inter), sans-serif" }}
       >
         <AnimatePresence mode="wait" initial={false}>
           {isRecording ? (
@@ -267,11 +249,14 @@ export function ShortcutRecorder({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 2 }}
               transition={{ duration: 0.08, ease: "easeOut" }}
-              className="leading-none text-[12px] font-medium"
+              className="flex items-center gap-[8px] leading-none text-[13px] font-medium"
             >
               {heldModifiers.length > 0
                 ? `${heldModifiers.join(" + ")} + ...`
                 : t("settings.shortcuts.press_keys") || "···"}
+              {errorMessage && (
+                <CloseCircleFill size={15} className="shrink-0 opacity-80" />
+              )}
             </motion.span>
           ) : (
             <motion.div
@@ -285,7 +270,7 @@ export function ShortcutRecorder({
               {getAcceleratorKeycaps(value).map((chip, idx) => (
                 <span
                   key={idx}
-                  className="inline-flex items-center justify-center min-w-[22px] h-[24px] px-2 rounded-md bg-border-alpha-14 text-text-primary text-[12px] font-[500] leading-none tracking-tight group-hover:bg-border-alpha-20 transition-colors"
+                  className="inline-flex items-center justify-center min-w-[30px] h-[30px] px-[10px] rounded-[8px] bg-black/[0.08] text-text-primary text-[13px] font-[500] leading-none transition-colors group-hover:bg-black/[0.12] dark:bg-black/40 dark:group-hover:bg-black/50"
                 >
                   {chip}
                 </span>
@@ -303,8 +288,7 @@ export function ShortcutRecorder({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 4, scale: 0.95 }}
             transition={{ duration: 0.12, ease: "easeOut" }}
-            className="absolute right-0 top-full mt-1.5 z-40 pointer-events-none whitespace-nowrap px-2.5 py-1 rounded-lg bg-[#18181b] shadow-xl flex items-center gap-1.5 text-[11.5px] text-rose-400 select-none border-0"
-            style={{ fontFamily: "var(--font-inter), sans-serif" }}
+            className="absolute left-0 top-full mt-[6px] z-40 pointer-events-none whitespace-nowrap px-[10px] py-[6px] rounded-[8px] bg-rose-600 shadow-xl flex items-center gap-1.5 text-[12px] font-[500] text-white select-none border-0"
           >
             <span>{errorMessage}</span>
           </motion.div>

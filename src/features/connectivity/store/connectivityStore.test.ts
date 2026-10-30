@@ -1,9 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useConnectivityStore } from "./connectivityStore";
+import {
+  setConnectivityHooks,
+  useConnectivityStore,
+} from "./connectivityStore";
 
 vi.mock("../lib/diagnostics", () => ({
   runAllChecks: vi.fn().mockResolvedValue({ checks: [], main: null }),
-  DIAG_ENDPOINTS: { api: "https://api.tryliner.fun", covers: "https://covers.tryliner.fun", link: "https://link.tryliner.fun" },
+  DIAG_ENDPOINTS: {
+    api: "https://api.tryliner.fun",
+    covers: "https://covers.tryliner.fun",
+    link: "https://link.tryliner.fun",
+  },
 }));
 
 describe("connectivityStore trip logic", () => {
@@ -27,11 +34,31 @@ describe("connectivityStore trip logic", () => {
 
   it("ignores track playback and lyrics failures without tripping", () => {
     const { recordFailure } = useConnectivityStore.getState();
-    recordFailure({ method: "POST", path: "/v1/tracks/trk_1/playback", latencyMs: 50 });
-    recordFailure({ method: "POST", path: "/v1/tracks/trk_2/playback", latencyMs: 50 });
-    recordFailure({ method: "POST", path: "/v1/tracks/trk_3/playback", latencyMs: 50 });
-    recordFailure({ method: "GET", path: "/v1/tracks/trk_1/lyrics", latencyMs: 50 });
-    recordFailure({ method: "GET", path: "/v1/playback/sess_123/media", latencyMs: 50 });
+    recordFailure({
+      method: "POST",
+      path: "/v1/tracks/trk_1/playback",
+      latencyMs: 50,
+    });
+    recordFailure({
+      method: "POST",
+      path: "/v1/tracks/trk_2/playback",
+      latencyMs: 50,
+    });
+    recordFailure({
+      method: "POST",
+      path: "/v1/tracks/trk_3/playback",
+      latencyMs: 50,
+    });
+    recordFailure({
+      method: "GET",
+      path: "/v1/tracks/trk_1/lyrics",
+      latencyMs: 50,
+    });
+    recordFailure({
+      method: "GET",
+      path: "/v1/playback/sess_123/media",
+      latencyMs: 50,
+    });
 
     const state = useConnectivityStore.getState();
     expect(state.tripped).toBe(false);
@@ -44,31 +71,69 @@ describe("connectivityStore trip logic", () => {
     store.recordFailure({ method: "GET", path: "/v1/me", latencyMs: 5 });
     store.recordFailure({ method: "GET", path: "/v1/me", latencyMs: 5 });
     vi.advanceTimersByTime(61_000);
-    useConnectivityStore.getState().recordFailure({ method: "GET", path: "/v1/me", latencyMs: 5 });
-    useConnectivityStore.getState().recordFailure({ method: "GET", path: "/v1/me", latencyMs: 5 });
+    useConnectivityStore
+      .getState()
+      .recordFailure({ method: "GET", path: "/v1/me", latencyMs: 5 });
+    useConnectivityStore
+      .getState()
+      .recordFailure({ method: "GET", path: "/v1/me", latencyMs: 5 });
     expect(useConnectivityStore.getState().tripped).toBe(false);
   });
 
   it("caps the failure log", () => {
     for (let i = 0; i < 30; i++) {
-      useConnectivityStore.getState().recordFailure({ method: "GET", path: "/v1/me", latencyMs: 1 });
+      useConnectivityStore
+        .getState()
+        .recordFailure({ method: "GET", path: "/v1/me", latencyMs: 1 });
     }
-    expect(useConnectivityStore.getState().failures.length).toBeLessThanOrEqual(20);
+    expect(useConnectivityStore.getState().failures.length).toBeLessThanOrEqual(
+      20,
+    );
+  });
+});
+
+describe("connectivityStore hooks", () => {
+  beforeEach(() => {
+    useConnectivityStore.getState().reset();
   });
 
-  it("updates lastSavedDumpPath when runAndSaveDump succeeds", async () => {
-    vi.useRealTimers();
-    (window as any).linerElectron = {
-      saveDump: vi.fn().mockResolvedValue({
-        success: true,
-        filePath: "/home/user/Desktop/test-offline-dump.json",
-      }),
-    };
+  it("ignores failures while suppressed", () => {
+    setConnectivityHooks({ suppress: () => true, onTrip: vi.fn() });
+    for (let i = 0; i < 5; i++)
+      useConnectivityStore
+        .getState()
+        .recordFailure({ method: "GET", path: "/v1/me", latencyMs: 1 });
+    expect(useConnectivityStore.getState().failures).toHaveLength(0);
+    setConnectivityHooks(null);
+  });
 
-    const res = await useConnectivityStore.getState().runAndSaveDump();
-    expect(res.success).toBe(true);
-    expect(useConnectivityStore.getState().lastSavedDumpPath).toBe("/home/user/Desktop/test-offline-dump.json");
+  it("keeps the wall hidden when the trip handler takes over", async () => {
+    const onTrip = vi.fn().mockResolvedValue("handled");
+    setConnectivityHooks({ suppress: () => false, onTrip });
+    for (let i = 0; i < 3; i++)
+      useConnectivityStore
+        .getState()
+        .recordFailure({ method: "GET", path: "/v1/me", latencyMs: 1 });
+    await vi.waitFor(() => expect(onTrip).toHaveBeenCalledTimes(1));
+    await Promise.resolve();
+    const state = useConnectivityStore.getState();
+    expect(state.visible).toBe(false);
+    expect(state.tripped).toBe(false);
+    setConnectivityHooks(null);
+  });
 
-    delete (window as any).linerElectron;
+  it("shows the wall when the trip handler asks for it", async () => {
+    setConnectivityHooks({
+      suppress: () => false,
+      onTrip: vi.fn().mockResolvedValue("show"),
+    });
+    for (let i = 0; i < 3; i++)
+      useConnectivityStore
+        .getState()
+        .recordFailure({ method: "GET", path: "/v1/me", latencyMs: 1 });
+    await vi.waitFor(() =>
+      expect(useConnectivityStore.getState().visible).toBe(true),
+    );
+    setConnectivityHooks(null);
   });
 });

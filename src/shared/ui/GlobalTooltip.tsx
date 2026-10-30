@@ -15,13 +15,22 @@ interface TooltipTargetData {
   side: "top" | "bottom";
 }
 
-function GlobalTooltipPortal({ text, targetRect, side: requestedSide }: TooltipTargetData) {
+function GlobalTooltipPortal({
+  text,
+  targetRect,
+  side: requestedSide,
+}: TooltipTargetData) {
   const tooltipRef = useRef<HTMLDivElement>(null);
   const [coords, setCoords] = useState<{ top: number; left: number }>(() => {
     const isTopTooClose = targetRect.top < 38;
-    const side = requestedSide === "top" && isTopTooClose ? "bottom" : requestedSide;
-    const initialTop = Math.round(side === "top" ? targetRect.top - 28 - 6 : targetRect.bottom + 6);
-    const initialLeft = Math.round(targetRect.left + (targetRect.width - 80) / 2);
+    const side =
+      requestedSide === "top" && isTopTooClose ? "bottom" : requestedSide;
+    const initialTop = Math.round(
+      side === "top" ? targetRect.top - 28 - 6 : targetRect.bottom + 6,
+    );
+    const initialLeft = Math.round(
+      targetRect.left + (targetRect.width - 80) / 2,
+    );
     return { top: Math.max(8, initialTop), left: Math.max(8, initialLeft) };
   });
 
@@ -47,11 +56,14 @@ function GlobalTooltipPortal({ text, targetRect, side: requestedSide }: TooltipT
     const rawLeft = targetRect.left + (targetRect.width - width) / 2;
     const clampedLeft = Math.min(
       Math.max(rawLeft, margin),
-      window.innerWidth - width - margin
+      window.innerWidth - width - margin,
     );
     const finalLeft = Math.round(clampedLeft);
 
-    const rawTop = side === "top" ? targetRect.top - height - sideOffset : targetRect.bottom + sideOffset;
+    const rawTop =
+      side === "top"
+        ? targetRect.top - height - sideOffset
+        : targetRect.bottom + sideOffset;
     const finalTop = Math.round(rawTop);
 
     setCoords({ top: finalTop, left: finalLeft });
@@ -72,9 +84,8 @@ function GlobalTooltipPortal({ text, targetRect, side: requestedSide }: TooltipT
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.08, ease: "easeOut" }}
-        className="rounded-lg border-0 bg-[#1c1c1f] px-2.5 py-1 text-[12px] font-medium text-white shadow-xl shadow-black/50 whitespace-nowrap leading-tight select-none subpixel-antialiased"
+        className="rounded-lg border-0 bg-[#1c1c1f] px-2.5 py-1 text-[12px] font-medium text-white shadow-xl shadow-black/50 whitespace-nowrap leading-tight select-none subpixel-antialiased [[data-cover-glow=on]_&]:bg-black/45 [[data-cover-glow=on]_&]:backdrop-blur-[24px] [[data-cover-glow=on]_&]:backdrop-saturate-150 [[data-cover-glow=on]_&]:shadow-black/25"
         style={{
-          fontFamily: "var(--font-inter), sans-serif",
           textRendering: "geometricPrecision",
         }}
       >
@@ -91,7 +102,9 @@ function GlobalTooltipPortal({ text, targetRect, side: requestedSide }: TooltipT
  * 2. Displays a clean, custom, theme-consistent floating tooltip for `[title]` and `[data-tooltip]`.
  */
 export function GlobalTooltip() {
-  const [activeTooltip, setActiveTooltip] = useState<TooltipTargetData | null>(null);
+  const [activeTooltip, setActiveTooltip] = useState<TooltipTargetData | null>(
+    null,
+  );
   const currentTargetRef = useRef<HTMLElement | null>(null);
   const openTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isWarmRef = useRef(false);
@@ -115,7 +128,8 @@ export function GlobalTooltip() {
   };
 
   useEffect(() => {
-    if (typeof window === "undefined" || typeof document === "undefined") return;
+    if (typeof window === "undefined" || typeof document === "undefined")
+      return;
 
     // Helper to strip title attribute and store in data-tooltip
     const neutralizeElement = (el: HTMLElement) => {
@@ -131,7 +145,10 @@ export function GlobalTooltip() {
     };
 
     const neutralizeSubtree = (root: ParentNode) => {
-      if ("getAttribute" in root && (root as HTMLElement).hasAttribute("title")) {
+      if (
+        "getAttribute" in root &&
+        (root as HTMLElement).hasAttribute("title")
+      ) {
         neutralizeElement(root as HTMLElement);
       }
       const elements = root.querySelectorAll<HTMLElement>("[title]");
@@ -154,7 +171,10 @@ export function GlobalTooltip() {
               neutralizeSubtree(node as HTMLElement);
             }
           }
-        } else if (mutation.type === "attributes" && mutation.attributeName === "title") {
+        } else if (
+          mutation.type === "attributes" &&
+          mutation.attributeName === "title"
+        ) {
           const el = mutation.target as HTMLElement;
           if (el.hasAttribute("title")) {
             neutralizeElement(el);
@@ -265,9 +285,11 @@ export function GlobalTooltip() {
 
   return createPortal(
     <AnimatePresence>
-      {activeTooltip && <GlobalTooltipPortal key={activeTooltip.text} {...activeTooltip} />}
+      {activeTooltip && (
+        <GlobalTooltipPortal key={activeTooltip.text} {...activeTooltip} />
+      )}
     </AnimatePresence>,
-    document.body
+    document.body,
   );
 }
 

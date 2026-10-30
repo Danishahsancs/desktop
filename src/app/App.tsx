@@ -1,21 +1,27 @@
 import { HashRouter } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
-import { ToastProvider, AppleEmojiProvider, RootErrorBoundary, GlobalTooltip, WindowAnimationContainer } from "@/shared/ui";
+import {
+  ToastProvider,
+  AppleEmojiProvider,
+  RootErrorBoundary,
+  GlobalTooltip,
+  WindowAnimationContainer,
+} from "@/shared/ui";
 import { useWindowDrag } from "@/shared/hooks";
 import { useAppIconSync } from "@/features/player";
 import { I18nProvider } from "@/languages";
 import { AuthLock } from "@/features/auth";
 import { CoverSwRegistrar } from "@/features/covers";
 import { usePresenceSync } from "@/shared/presence";
-import { useThemeCustomizationSync } from "@/features/settings";
 import { useTouchBarSync } from "@/features/touchbar";
-import { OverlayPlayer, useOverlaySync } from "@/features/overlay";
+import { useOverlaySync } from "@/features/overlay";
+import { useDiscordSync } from "@/features/discord";
 import { AppRoutes } from "./routes";
 import DeeplinkHandler from "./DeeplinkHandler";
 import NativeBackButton from "./NativeBackButton";
 import EnvironmentWarning from "./EnvironmentWarning";
-import { ConnectivityWall } from "@/features/connectivity";
-import { getAuthSession } from "@/shared/api";
+import { ConnectionIssueModal } from "@/features/connectivity";
+import { useThemeCustomizationSync } from "@/features/settings";
 import "./globals.css";
 
 function AppIconSync() {
@@ -43,28 +49,12 @@ function OverlaySync() {
   return null;
 }
 
+function DiscordSync() {
+  useDiscordSync();
+  return null;
+}
+
 export default function App() {
-  const isOverlay = window.location.hash.startsWith("#/overlay");
-
-  if (isOverlay) {
-    if (!getAuthSession()) {
-      window.linerElectron?.closeOverlay?.();
-      return null;
-    }
-
-    return (
-      <ThemeProvider
-        attribute="data-theme"
-        defaultTheme="dark"
-        enableSystem={false}
-        forcedTheme="dark"
-      >
-        <GlobalTooltip />
-        <OverlayPlayer />
-      </ThemeProvider>
-    );
-  }
-
   useWindowDrag();
 
   return (
@@ -82,6 +72,7 @@ export default function App() {
         <PresenceSync />
         <TouchBarSync />
         <OverlaySync />
+        <DiscordSync />
         <AppleEmojiProvider>
           <I18nProvider>
             <ToastProvider>
@@ -90,7 +81,7 @@ export default function App() {
                   <DeeplinkHandler />
                   <NativeBackButton />
                   <EnvironmentWarning />
-                  <ConnectivityWall />
+                  <ConnectionIssueModal />
                   <AuthLock>
                     <AppRoutes />
                   </AuthLock>

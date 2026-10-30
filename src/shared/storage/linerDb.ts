@@ -1,9 +1,13 @@
 import type { Track } from "@/shared/types";
-import type { LyricsCandidate, LyricsSyncLevel } from "@/shared/contracts/lyrics";
+import type {
+  LyricsCandidate,
+  LyricsSyncLevel,
+} from "@/shared/contracts/lyrics";
 import type { LyricsProviderOption } from "@/features/lyrics/store/lyricsStore";
 import {
   shouldCacheLyricsCandidate,
   compareLyricsCandidates,
+  mergeLyricsProvider,
 } from "@/features/lyrics";
 
 export interface CachedTrackRecord {
@@ -25,6 +29,11 @@ export interface CachedAudioRecord {
   savedAt: number;
   lastPlayedAt?: number;
 }
+
+export type CachedAudioEntry = Pick<
+  CachedAudioRecord,
+  "trackId" | "byteSize" | "savedAt" | "lastPlayedAt"
+>;
 
 export interface CachedLyricsRecord {
   trackId: string;
@@ -52,6 +61,26 @@ const DB_NAME = "liner_db_v1";
 const DB_VERSION = 4;
 
 const MEM_AUDIO_LIMIT = 3;
+// the memory maps only sit in front of indexeddb: cap them so a long session doesn't keep every record it saw
+const MEM_TRACK_LIMIT = 500;
+const MEM_LYRICS_LIMIT = 100;
+const MEM_ARTIST_LIMIT = 100;
+
+// keeps the most recently written entries; maps iterate in insertion order, so the first key is the oldest
+function rememberLimited<T>(
+  map: Map<string, T>,
+  key: string,
+  value: T,
+  limit: number,
+): void {
+  map.delete(key);
+  map.set(key, value);
+  while (map.size > limit) {
+    const oldest = map.keys().next().value;
+    if (oldest === undefined) break;
+    map.delete(oldest);
+  }
+}
 
 class LinerDb {
   private dbPromise: Promise<IDBDatabase> | null = null;
@@ -62,7 +91,7 @@ class LinerDb {
   private memLyrics = new Map<string, CachedLyricsRecord>();
   private memArtists = new Map<string, CachedArtistRecord>();
 
-  private handleDbError(err: unknown) {
+  private handleDbError() {
     this.dbPromise = null;
   }
 
@@ -92,20 +121,30 @@ class LinerDb {
         }
 
         if (!db.objectStoreNames.contains("audio")) {
-          const audioStore = db.createObjectStore("audio", { keyPath: "trackId" });
+          const audioStore = db.createObjectStore("audio", {
+            keyPath: "trackId",
+          });
           audioStore.createIndex("savedAt", "savedAt", { unique: false });
           audioStore.createIndex("byteSize", "byteSize", { unique: false });
-          audioStore.createIndex("lastPlayedAt", "lastPlayedAt", { unique: false });
+          audioStore.createIndex("lastPlayedAt", "lastPlayedAt", {
+            unique: false,
+          });
         } else {
           const audioStore = request.transaction?.objectStore("audio");
           if (audioStore && !audioStore.indexNames.contains("lastPlayedAt")) {
-            audioStore.createIndex("lastPlayedAt", "lastPlayedAt", { unique: false });
+            audioStore.createIndex("lastPlayedAt", "lastPlayedAt", {
+              unique: false,
+            });
           }
         }
 
         if (!db.objectStoreNames.contains("lyrics")) {
-          const lyricsStore = db.createObjectStore("lyrics", { keyPath: "trackId" });
-          lyricsStore.createIndex("lastCheckedAt", "lastCheckedAt", { unique: false });
+          const lyricsStore = db.createObjectStore("lyrics", {
+            keyPath: "trackId",
+          });
+          lyricsStore.createIndex("lastCheckedAt", "lastCheckedAt", {
+            unique: false,
+          });
           lyricsStore.createIndex("syncLevel", "syncLevel", { unique: false });
         } else if (event.oldVersion < 4) {
           // clear legacy lyrics store on v4 migration
@@ -115,8 +154,12 @@ class LinerDb {
         }
 
         if (!db.objectStoreNames.contains("artists")) {
-          const artistStore = db.createObjectStore("artists", { keyPath: "id" });
-          artistStore.createIndex("lastCheckedAt", "lastCheckedAt", { unique: false });
+          const artistStore = db.createObjectStore("artists", {
+            keyPath: "id",
+          });
+          artistStore.createIndex("lastCheckedAt", "lastCheckedAt", {
+            unique: false,
+          });
         }
       };
 
@@ -172,8 +215,8 @@ class LinerDb {
             reject(err);
           }
         });
-      } catch (err) {
-        this.handleDbError(err);
+      } catch {
+        this.handleDbError();
         if (attempt === 0) {
           // retry once on fresh connection
           continue;
@@ -196,7 +239,7 @@ class LinerDb {
     });
 
     if (result) {
-      this.memTracks.set(id, result);
+      rememberLimited(this.memTracks, id, result, MEM_TRACK_LIMIT);
       return result;
     }
     return this.memTracks.get(id) || null;
@@ -213,7 +256,7 @@ class LinerDb {
       durationMs: track.durationMs,
       savedAt: Date.now(),
     };
-    this.memTracks.set(track.id, record);
+    rememberLimited(this.memTracks, track.id, record, MEM_TRACK_LIMIT);
 
     await this.runTransaction("tracks", "readwrite", (store) => {
       return new Promise<void>((resolve, reject) => {
@@ -255,13 +298,7 @@ class LinerDb {
   }
 
   private rememberAudio(trackId: string, record: CachedAudioRecord): void {
-    this.memAudio.delete(trackId);
-    this.memAudio.set(trackId, record);
-    while (this.memAudio.size > MEM_AUDIO_LIMIT) {
-      const oldest = this.memAudio.keys().next().value;
-      if (oldest === undefined) break;
-      this.memAudio.delete(oldest);
-    }
+    rememberLimited(this.memAudio, trackId, record, MEM_AUDIO_LIMIT);
   }
 
   async getAudio(trackId: string): Promise<CachedAudioRecord | null> {
@@ -286,7 +323,12 @@ class LinerDb {
     return this.memAudio.get(trackId) || null;
   }
 
-  async putAudio(trackId: string, blob: Blob, mimeType: string, lastPlayedAt?: number): Promise<void> {
+  async putAudio(
+    trackId: string,
+    blob: Blob,
+    mimeType: string,
+    lastPlayedAt?: number,
+  ): Promise<void> {
     const existing = this.memAudio.get(trackId);
     const now = Date.now();
     const record: CachedAudioRecord = {
@@ -334,7 +376,10 @@ class LinerDb {
             records.push(cursor.value as CachedAudioRecord);
             cursor.continue();
           } else {
-            records.sort((a, b) => (a.lastPlayedAt ?? a.savedAt) - (b.lastPlayedAt ?? b.savedAt));
+            records.sort(
+              (a, b) =>
+                (a.lastPlayedAt ?? a.savedAt) - (b.lastPlayedAt ?? b.savedAt),
+            );
             resolve(records);
           }
         };
@@ -347,8 +392,37 @@ class LinerDb {
     }
 
     const memList = Array.from(this.memAudio.values());
-    memList.sort((a, b) => (a.lastPlayedAt ?? a.savedAt) - (b.lastPlayedAt ?? b.savedAt));
+    memList.sort(
+      (a, b) => (a.lastPlayedAt ?? a.savedAt) - (b.lastPlayedAt ?? b.savedAt),
+    );
     return memList;
+  }
+
+  async listAudioEntries(): Promise<CachedAudioEntry[]> {
+    const result = await this.runTransaction("audio", "readonly", (store) => {
+      return new Promise<CachedAudioEntry[]>((resolve) => {
+        const entries: CachedAudioEntry[] = [];
+        const req = store.openCursor();
+        req.onsuccess = () => {
+          const cursor = req.result;
+          if (cursor) {
+            const record = cursor.value as CachedAudioRecord;
+            entries.push({
+              trackId: record.trackId,
+              byteSize: record.byteSize,
+              savedAt: record.savedAt,
+              lastPlayedAt: record.lastPlayedAt,
+            });
+            cursor.continue();
+          } else {
+            resolve(entries);
+          }
+        };
+        req.onerror = () => resolve([]);
+      });
+    });
+
+    return result ?? [];
   }
 
   async hasAudio(trackId: string): Promise<boolean> {
@@ -435,7 +509,7 @@ class LinerDb {
           }
         }
       }
-      this.memLyrics.set(trackId, result);
+      rememberLimited(this.memLyrics, trackId, result, MEM_LYRICS_LIMIT);
       return result;
     }
     return this.memLyrics.get(trackId) || null;
@@ -443,20 +517,14 @@ class LinerDb {
 
   async putLyrics(record: CachedLyricsRecord): Promise<void> {
     const providers: Record<string, LyricsCandidate> = {
-      ...(record.providers || {}),
+      ...record.providers,
     };
 
-    if (record.candidate && shouldCacheLyricsCandidate(record.candidate)) {
-      providers[record.candidate.provider.toLowerCase().trim()] =
-        record.candidate;
-    }
+    if (record.candidate) mergeLyricsProvider(providers, record.candidate);
 
     if (record.availableProviders) {
       for (const opt of record.availableProviders) {
-        if (opt.candidate && shouldCacheLyricsCandidate(opt.candidate)) {
-          providers[opt.candidate.provider.toLowerCase().trim()] =
-            opt.candidate;
-        }
+        if (opt.candidate) mergeLyricsProvider(providers, opt.candidate);
       }
     }
 
@@ -493,7 +561,12 @@ class LinerDb {
       availableProviders: validOptions,
     };
 
-    this.memLyrics.set(record.trackId, sanitizedRecord);
+    rememberLimited(
+      this.memLyrics,
+      record.trackId,
+      sanitizedRecord,
+      MEM_LYRICS_LIMIT,
+    );
 
     await this.runTransaction("lyrics", "readwrite", (store) => {
       return new Promise<void>((resolve, reject) => {
@@ -570,14 +643,14 @@ class LinerDb {
     });
 
     if (result) {
-      this.memArtists.set(id, result);
+      rememberLimited(this.memArtists, id, result, MEM_ARTIST_LIMIT);
       return result;
     }
     return this.memArtists.get(id) || null;
   }
 
   async putArtist(record: CachedArtistRecord): Promise<void> {
-    this.memArtists.set(record.id, record);
+    rememberLimited(this.memArtists, record.id, record, MEM_ARTIST_LIMIT);
 
     await this.runTransaction("artists", "readwrite", (store) => {
       return new Promise<void>((resolve, reject) => {
@@ -625,7 +698,9 @@ class LinerDb {
     return total;
   }
 
-  async clearStore(storeName: "tracks" | "audio" | "lyrics" | "artists"): Promise<void> {
+  async clearStore(
+    storeName: "tracks" | "audio" | "lyrics" | "artists",
+  ): Promise<void> {
     if (storeName === "tracks") this.memTracks.clear();
     if (storeName === "audio") this.memAudio.clear();
     if (storeName === "lyrics") this.memLyrics.clear();
@@ -635,6 +710,44 @@ class LinerDb {
       return new Promise<void>((resolve) => {
         const req = store.clear();
         req.onsuccess = () => resolve();
+        req.onerror = () => resolve();
+      });
+    });
+  }
+
+  async deleteLyrics(trackIds: string[]): Promise<void> {
+    if (trackIds.length === 0) return;
+    for (const id of trackIds) this.memLyrics.delete(id);
+    await this.runTransaction("lyrics", "readwrite", (store) =>
+      Promise.all(
+        trackIds.map(
+          (id) =>
+            new Promise<void>((resolve) => {
+              const req = store.delete(id);
+              req.onsuccess = () => resolve();
+              req.onerror = () => resolve();
+            }),
+        ),
+      ).then(() => undefined),
+    );
+  }
+
+  async clearCachedLyrics(keep: (trackId: string) => boolean): Promise<void> {
+    for (const id of this.memLyrics.keys()) {
+      if (!keep(id)) this.memLyrics.delete(id);
+    }
+    await this.runTransaction("lyrics", "readwrite", (store) => {
+      return new Promise<void>((resolve) => {
+        const req = store.openCursor();
+        req.onsuccess = () => {
+          const cursor = req.result;
+          if (!cursor) {
+            resolve();
+            return;
+          }
+          if (!keep(String(cursor.key))) cursor.delete();
+          cursor.continue();
+        };
         req.onerror = () => resolve();
       });
     });

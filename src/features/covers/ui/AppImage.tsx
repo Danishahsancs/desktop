@@ -2,14 +2,18 @@ import {
   useState,
   useRef,
   useEffect,
+  useLayoutEffect,
   useCallback,
   type ImgHTMLAttributes,
   type SyntheticEvent,
   type CSSProperties,
 } from "react";
+import { isCoverReady } from "../lib/coverArt";
 
-export interface ImageProps
-  extends Omit<ImgHTMLAttributes<HTMLImageElement>, "src" | "placeholder"> {
+export interface ImageProps extends Omit<
+  ImgHTMLAttributes<HTMLImageElement>,
+  "src" | "placeholder"
+> {
   src: string | { src: string };
   alt?: string;
   width?: number | string;
@@ -32,8 +36,8 @@ export default function AppImage({
   height,
   fill = false,
   priority = false,
-  placeholder = "empty",
-  blurDataURL,
+  placeholder: _placeholder,
+  blurDataURL: _blurDataURL,
   fallbackSrc,
   crossOrigin,
   autoCropLetterbox = true,
@@ -44,9 +48,13 @@ export default function AppImage({
   draggable = false,
   ...rest
 }: ImageProps) {
-  const resolvedSrc = typeof src === "string" ? src : src?.src ?? "";
+  const resolvedSrc = typeof src === "string" ? src : (src?.src ?? "");
   const [currentSrc, setCurrentSrc] = useState(resolvedSrc);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(() => isCoverReady(resolvedSrc));
+  const [shownInstantly, setShownInstantly] = useState(() =>
+    isCoverReady(resolvedSrc),
+  );
+  const syncedSrcRef = useRef(resolvedSrc);
   const [hasError, setHasError] = useState(false);
   const [isLetterboxed, setIsLetterboxed] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -73,17 +81,22 @@ export default function AppImage({
 
   // Sync state if src prop changes
   useEffect(() => {
+    if (syncedSrcRef.current === resolvedSrc) return;
+    syncedSrcRef.current = resolvedSrc;
+    const ready = isCoverReady(resolvedSrc);
     setCurrentSrc(resolvedSrc);
-    setIsLoaded(false);
+    setIsLoaded(ready);
+    setShownInstantly(ready);
     setHasError(false);
     setIsLetterboxed(false);
     loadedSrcRef.current = null;
   }, [resolvedSrc]);
 
   // If already complete (e.g. from browser / service worker cache)
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
       checkLetterbox(imgRef.current);
+      setShownInstantly(true);
       setIsLoaded(true);
       if (loadedSrcRef.current !== currentSrc) {
         loadedSrcRef.current = currentSrc;
@@ -126,19 +139,44 @@ export default function AppImage({
     : {
         position: "relative",
         display: "inline-block",
-        width: width ? (typeof width === "number" ? `${width}px` : width) : undefined,
-        height: height ? (typeof height === "number" ? `${height}px` : height) : undefined,
+        width: width
+          ? typeof width === "number"
+            ? `${width}px`
+            : width
+          : undefined,
+        height: height
+          ? typeof height === "number"
+            ? `${height}px`
+            : height
+          : undefined,
       };
 
   const baseScale = isLetterboxed ? "scale(1.34)" : undefined;
-  const combinedTransform = [baseScale, style?.transform].filter(Boolean).join(" ") || undefined;
+  const combinedTransform =
+    [baseScale, style?.transform].filter(Boolean).join(" ") || undefined;
 
   const imgStyle: CSSProperties = {
-    width: fill ? "100%" : width ? (typeof width === "number" ? `${width}px` : width) : undefined,
-    height: fill ? "100%" : height ? (typeof height === "number" ? `${height}px` : height) : undefined,
+    width: fill
+      ? "100%"
+      : width
+        ? typeof width === "number"
+          ? `${width}px`
+          : width
+        : undefined,
+    height: fill
+      ? "100%"
+      : height
+        ? typeof height === "number"
+          ? `${height}px`
+          : height
+        : undefined,
     opacity: isLoaded ? 1 : 0,
     transformOrigin: "center center",
-    transition: style?.transition ?? "opacity 0.22s ease-in-out, filter 0.3s ease-out",
+    transition:
+      style?.transition ??
+      (shownInstantly
+        ? "filter 0.3s ease-out"
+        : "opacity 0.22s ease-in-out, filter 0.3s ease-out"),
     ...style,
     ...(combinedTransform ? { transform: combinedTransform } : {}),
   };
@@ -149,7 +187,7 @@ export default function AppImage({
       style={containerStyle}
     >
       {/* Placeholder / Skeleton layer */}
-      {!isLoaded && !hasError && (
+      {Boolean(currentSrc) && !isLoaded && !hasError && (
         <div
           aria-hidden="true"
           className="absolute inset-0 pointer-events-none bg-bg-panel"
@@ -157,21 +195,22 @@ export default function AppImage({
       )}
 
       {/* Actual Image */}
-      <img
-        ref={imgRef}
-        src={currentSrc}
-        alt={alt}
-        crossOrigin={crossOrigin}
-        loading={priority ? "eager" : "lazy"}
-        decoding={priority ? "auto" : "async"}
-        draggable={draggable}
-        onLoad={handleLoad}
-        onError={handleError}
-        className={`${fill ? "absolute inset-0 w-full h-full object-cover" : "object-cover"} ${className}`}
-        style={imgStyle}
-        {...rest}
-      />
+      {Boolean(currentSrc) && (
+        <img
+          ref={imgRef}
+          src={currentSrc}
+          alt={alt}
+          crossOrigin={crossOrigin}
+          loading={priority ? "eager" : "lazy"}
+          decoding={priority ? "auto" : "async"}
+          draggable={draggable}
+          onLoad={handleLoad}
+          onError={handleError}
+          className={`${fill ? "absolute inset-0 w-full h-full object-cover" : "object-cover"} ${className}`}
+          style={imgStyle}
+          {...rest}
+        />
+      )}
     </div>
   );
 }
-
