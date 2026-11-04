@@ -1,3 +1,6 @@
+import { isLocalAccount } from "./localAccount";
+import { handleLocalRequest } from "./localBackend";
+import { searchLocalLyrics, streamLocalLyrics } from "./localLyrics";
 import {
   getAuthSession,
   getSessionExpiryMs,
@@ -209,6 +212,8 @@ async function executeRequest<T>(
   timeoutMs = DEFAULT_TIMEOUT_MS,
   onResponse?: (res: Response) => void,
 ): Promise<T> {
+  if (isLocalAccount()) return handleLocalRequest<T>(path, init);
+
   const startTime = performance.now();
   const method = (init?.method ?? "GET").toUpperCase();
   const rawBody = typeof init?.body === "string" ? init.body : null;
@@ -1089,6 +1094,8 @@ export const api = {
     hint: { title: string; artist: string; durationMs?: number },
     signal?: AbortSignal,
   ): Promise<LyricsSearchResult | null> {
+    if (isLocalAccount()) return searchLocalLyrics(hint, signal);
+
     const params = new URLSearchParams({
       title: hint.title.trim(),
       artist: hint.artist.trim(),
@@ -1118,6 +1125,10 @@ export const api = {
     signal?: AbortSignal,
     hint?: { title: string; artist: string; durationMs?: number },
   ): AsyncGenerator<LyricsStreamEvent> {
+    if (isLocalAccount()) {
+      yield* streamLocalLyrics(hint, signal);
+      return;
+    }
     const hintParams =
       hint?.title.trim() && hint.artist.trim()
         ? new URLSearchParams({

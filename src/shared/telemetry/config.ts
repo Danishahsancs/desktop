@@ -1,3 +1,4 @@
+import { isLocalAccount } from "@/shared/api/localAccount";
 /**
  * Client Telemetry & Metrics Configuration for Liner Desktop.
  * Easily toggled via environment variables or runtime switch.
@@ -30,7 +31,7 @@ let isEnabled = false;
 
 export const telemetryConfig: TelemetryConfig = {
   get enabled() {
-    return isEnabled;
+    return isEnabled && !isLocalAccount();
   },
   set enabled(val: boolean) {
     isEnabled = val;

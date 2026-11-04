@@ -1,3 +1,4 @@
+import { isLocalAccount } from "@/shared/api/localAccount";
 import { getAuthSession, getValidAccessToken } from "../api/auth-session";
 import { getApiBaseUrl } from "../api/baseUrl";
 import { APP_VERSION } from "../config/version";
@@ -75,7 +76,7 @@ export class PresenceClient {
   async beat(): Promise<void> {
     if (!this.isRunning || this.inFlight) return;
     const session = getAuthSession();
-    if (!session?.accessToken) return;
+    if (!session?.accessToken || isLocalAccount()) return;
 
     this.inFlight = true;
     this.lastBeatAt = Date.now();

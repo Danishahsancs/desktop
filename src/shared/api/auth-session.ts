@@ -1,3 +1,9 @@
+import {
+  isLocalAccount,
+  leaveLocalAccount,
+  localSession,
+  saveLocalUser,
+} from "./localAccount";
 import type { AuthTokens, AuthUser } from "../contracts";
 import { signApiRequest, syncServerTime } from "./requestSigner";
 
@@ -85,6 +91,7 @@ function loadFromMain(bridge: MainAuthBridge): AuthTokens | null {
 }
 
 export function getAuthSession(): AuthTokens | null {
+  if (isLocalAccount()) return localSession();
   if (session) return session;
   const bridge = mainBridge();
   if (bridge) {
@@ -104,6 +111,12 @@ if (typeof window !== "undefined") {
 }
 
 export function setAuthSession(next: AuthTokens | null): void {
+  if (isLocalAccount()) {
+    if (next) saveLocalUser(next.user);
+    else leaveLocalAccount();
+    emit();
+    return;
+  }
   session = next;
   const bridge = mainBridge();
   if (bridge) {
@@ -310,6 +323,11 @@ async function rejectionCode(response: Response): Promise<string> {
 }
 
 export async function clearAuthSession(): Promise<void> {
+  if (isLocalAccount()) {
+    leaveLocalAccount();
+    emit();
+    return;
+  }
   let current = getAuthSession();
   const expiryMs = getSessionExpiryMs(current);
   if (current && expiryMs !== null && expiryMs <= Date.now()) {

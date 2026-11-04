@@ -1,3 +1,4 @@
+import { isLocalAccount } from "@/shared/api/localAccount";
 import { getApiBaseUrl } from "@/shared/api/baseUrl";
 import { isLocalTrackId } from "@/shared/media/local";
 
@@ -15,6 +16,7 @@ function devOverride(): string | null {
 }
 
 async function download(trackId: string): Promise<string | null> {
+  if (isLocalAccount()) return null;
   const url = `${getApiBaseUrl()}/v1/tracks/${encodeURIComponent(trackId)}/ambient`;
   const response = await fetch(url);
   if (response.status === 404) return null;

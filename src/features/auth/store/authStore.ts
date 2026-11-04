@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { api, ApiError } from "@/shared/api";
+import { api, ApiError, enterLocalAccount } from "@/shared/api";
+import { localUser } from "@/shared/api/localAccount";
 import {
   clearAuthSession,
   getAuthSession,
@@ -26,6 +27,7 @@ export type AuthState = {
     displayName: string,
   ) => Promise<void>;
   updateProfile: (patch: UpdateProfileInput) => Promise<PublicUser>;
+  continueWithoutAccount: () => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -125,6 +127,15 @@ export const useAuthStore = create<AuthState>((set) => ({
       user: prev.user ? { ...prev.user, ...updated } : updated,
     }));
     return updated;
+  },
+  // library lives on this device; nothing talks to the liner server
+  continueWithoutAccount: async () => {
+    enterLocalAccount();
+    queryCache.clear();
+    clearScreenCache();
+    set({ status: "authenticated", user: localUser() });
+    window.dispatchEvent(new Event("auth:changed"));
+    window.dispatchEvent(new Event("library:changed"));
   },
   logout: async () => {
     await clearPlayback();

@@ -14,6 +14,7 @@ import {
   useAuthStore,
 } from "../store/authStore";
 import { useTranslation } from "@/languages";
+import { isNativeApp } from "@/shared/platform";
 import { cn } from "@/shared/lib";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -23,6 +24,9 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const { isEdgeToEdge } = useWindowState();
   const login = useAuthStore((state) => state.login);
+  const continueWithoutAccount = useAuthStore(
+    (state) => state.continueWithoutAccount,
+  );
   const register = useAuthStore((state) => state.register);
   const { t } = useTranslation();
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -592,6 +596,22 @@ export default function LoginPage() {
               </form>
             </div>
           </div>
+
+          {(isNativeApp() || import.meta.env.DEV) && (
+            <div className="flex flex-col items-center gap-[6px] pb-[16px] text-center">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => void continueWithoutAccount()}
+                className="w-full"
+              >
+                {t("login.btn_no_account")}
+              </Button>
+              <p className="m-0 text-[12px] leading-[1.45] text-text-tertiary">
+                {t("login.no_account_hint")}
+              </p>
+            </div>
+          )}
 
           {/* Bottom: legal warning */}
           <p className="m-0 shrink-0 text-center text-[11px] leading-[1.5] text-text-tertiary">

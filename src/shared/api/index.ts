@@ -63,6 +63,7 @@ export {
 } from "./auth-session";
 
 export { toClientTrack } from "./track";
+export { isLocalAccount, enterLocalAccount } from "./localAccount";
 
 export {
   registerLocalImportHandler,

@@ -9,6 +9,7 @@ import { useRecentlyPlayed } from "../hooks/useRecentlyPlayed";
 import { useDailyMixes } from "../hooks/useDailyMixes";
 import { useMostSaved, usePopularAlbums } from "../hooks/useExploreCollections";
 import { useTranslation } from "@/languages";
+import { isLocalAccount } from "@/shared/api";
 import Button from "@/shared/ui/Button";
 import { usePageBackdrop } from "@/shared/lib";
 import { useHomeBackdrop } from "../hooks/useHomeBackdrop";
@@ -83,11 +84,12 @@ function HomeFeed({ onRetry }: { onRetry: () => void }) {
         {isReady && nothingLoaded && (
           <div className="col-start-1 row-start-1 flex min-h-[60vh] w-full flex-col items-center justify-center gap-[6px] px-[24px] text-center">
             <span className="text-[15px] font-[600] text-text-primary">
-              {t("home.load_failed")}
+              {t(isLocalAccount() ? "home.local_empty_title" : "home.load_failed")}
             </span>
             <span className="text-[13px] text-text-secondary">
-              {t("playlist.load_failed_desc")}
+              {t(isLocalAccount() ? "home.local_empty_desc" : "playlist.load_failed_desc")}
             </span>
+            {!isLocalAccount() && (
             <Button
               variant="secondary"
               onClick={onRetry}
@@ -95,6 +97,7 @@ function HomeFeed({ onRetry }: { onRetry: () => void }) {
             >
               {t("offline.try_again")}
             </Button>
+            )}
           </div>
         )}
 

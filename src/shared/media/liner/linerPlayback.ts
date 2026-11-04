@@ -1,3 +1,4 @@
+import { isLocalAccount } from "@/shared/api/localAccount";
 import { getAuthSession, getValidAccessToken } from "@/shared/api/auth-session";
 import { getApiBaseUrl } from "@/shared/api/baseUrl";
 import { isAbortError } from "@/shared/utils/abort";
@@ -31,6 +32,7 @@ export async function resolveLinerStream(
   videoId: string,
   signal?: AbortSignal,
 ): Promise<LinerAudioStream | null> {
+  if (isLocalAccount()) return null;
   if (Date.now() < pausedUntil || !getAuthSession()?.accessToken) return null;
   const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
   try {

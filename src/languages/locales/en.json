@@ -211,7 +211,9 @@
     "popularPlaylists": "Popular Playlists",
     "dailyMixes": "Your Mixes",
     "dailyMixesSubtitle": "Fresh playlists curated around your favorite artists and genres",
-    "load_failed": "Couldn't load your home feed"
+    "load_failed": "Couldn't load your home feed",
+    "local_empty_title": "Nothing played yet",
+    "local_empty_desc": "Search for a song to get started. What you play will show up here."
   },
   "library": {
     "title": "Library",
@@ -309,6 +311,8 @@
     "placeholder_password_new": "At least 8 characters",
     "placeholder_confirm": "Repeat your password",
     "btn_sign_in": "Sign in",
+    "btn_no_account": "Continue without an account",
+    "no_account_hint": "Your playlists and likes stay on this phone. They won't sync with desktop.",
     "btn_signing_in": "Signing in…",
     "btn_create_account": "Create account",
     "btn_creating_account": "Creating account…",
