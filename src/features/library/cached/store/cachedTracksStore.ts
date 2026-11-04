@@ -20,6 +20,9 @@ export interface CachedTrack {
 
 interface CachedTracksState {
   items: CachedTrack[];
+  // songs saved by a playlist's cache button, which eviction leaves alone
+  pinnedIds: ReadonlySet<string>;
+  addPinned: (trackId: string) => void;
   loaded: boolean;
   loading: boolean;
   visibleOnline: boolean;
@@ -59,6 +62,10 @@ async function readCachedTracks(): Promise<CachedTrack[]> {
 
 export const useCachedTracksStore = create<CachedTracksState>((set, get) => ({
   items: [],
+  pinnedIds: new Set<string>(),
+  addPinned: (trackId) => {
+    set({ pinnedIds: new Set(get().pinnedIds).add(trackId) });
+  },
   loaded: false,
   loading: false,
   visibleOnline: readVisibleOnline(),
@@ -72,13 +79,28 @@ export const useCachedTracksStore = create<CachedTracksState>((set, get) => ({
     if (get().loading) return;
     set({ loading: true });
     try {
-      set({ items: await readCachedTracks(), loaded: true });
+      const [items, entries] = await Promise.all([
+        readCachedTracks(),
+        linerDb.listAudioEntries(),
+      ]);
+      set({
+        items,
+        pinnedIds: new Set(
+          entries.filter((entry) => entry.pinned).map((entry) => entry.trackId),
+        ),
+        loaded: true,
+      });
     } finally {
       set({ loading: false });
     }
   },
   remove: async (trackId) => {
-    set({ items: get().items.filter((item) => item.track.id !== trackId) });
+    const pinnedIds = new Set(get().pinnedIds);
+    pinnedIds.delete(trackId);
+    set({
+      items: get().items.filter((item) => item.track.id !== trackId),
+      pinnedIds,
+    });
     await audioCache.deleteAudio(trackId);
   },
 }));

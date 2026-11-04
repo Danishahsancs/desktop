@@ -50,11 +50,20 @@ class AudioCache {
     const totalBytes = await linerDb.getTotalAudioBytes();
     if (totalBytes <= limit) return 0;
 
+    // pinned songs are never evicted, so they don't count against the limit either
+    const oldest = (await linerDb.getOldestAudioRecords()).filter(
+      (item) => !item.pinned,
+    );
+    const evictableBytes = oldest.reduce(
+      (sum, item) => sum + (item.byteSize || item.blob?.size || 0),
+      0,
+    );
+    if (evictableBytes <= limit) return 0;
+
     const targetBytes = Math.floor(limit * 0.9);
-    const bytesToEvict = totalBytes - targetBytes;
+    const bytesToEvict = evictableBytes - targetBytes;
     let evictedBytes = 0;
 
-    const oldest = await linerDb.getOldestAudioRecords();
     for (const item of oldest) {
       if (evictedBytes >= bytesToEvict) break;
       const size = item.byteSize || item.blob?.size || 0;
@@ -90,10 +99,11 @@ class AudioCache {
     blob: Blob,
     mimeType: string = "audio/ogg",
     generation?: number,
+    pinned?: boolean,
   ): Promise<boolean> {
     if (generation !== undefined && generation !== this.generation)
       return false;
-    await linerDb.putAudio(trackId, blob, mimeType);
+    await linerDb.putAudio(trackId, blob, mimeType, undefined, pinned);
     await this.enforceCacheLimit();
     return true;
   }

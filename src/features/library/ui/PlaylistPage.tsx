@@ -28,6 +28,7 @@ import { usePageBackdrop } from "@/shared/lib";
 import { useClassicSurfaces } from "@/features/settings/store/customizationStore";
 import { useLikesCover } from "../hooks/useLikesCover";
 import { useSavedTracksStore } from "../saved";
+import { PlaylistCacheButton, PlaylistCacheChip } from "../cached";
 import { isSavedTrack } from "@/shared/media/saved";
 import { useAuthStore } from "@/features/auth";
 import { userDisplayName } from "@/entities/user";
@@ -767,6 +768,11 @@ function LibraryPlaylistContent() {
                           </span>
                         </div>
                       ) : null}
+                      <PlaylistCacheChip
+                        playlistId={id ?? ""}
+                        tracks={viewData.tracks}
+                        className={HERO_CHIP_CLASS}
+                      />
                     </div>
                   }
                   actions={
@@ -789,6 +795,12 @@ function LibraryPlaylistContent() {
                       >
                         <LuShuffle size={18} />
                       </Button>
+                      <PlaylistCacheButton
+                        playlistId={id ?? ""}
+                        title={viewData.title}
+                        tracks={viewData.tracks}
+                        className={`${HERO_BUTTON_CLASS} ${HERO_GLASS_BUTTON_CLASS} text-text-primary`}
+                      />
                     </>
                   }
                   trailingActions={

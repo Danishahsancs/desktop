@@ -42,7 +42,7 @@ async function fromAudioCache(trackId: string): Promise<FetchedAudio | null> {
   };
 }
 
-async function fromNetwork(
+export async function fromNetwork(
   track: Track,
   signal: AbortSignal,
 ): Promise<FetchedAudio> {

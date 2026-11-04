@@ -275,10 +275,22 @@
     },
     "cached": {
       "title": "Cached songs",
-      "subtitle": "Songs Liner kept while you listened. They play without a connection until the cache makes room for new ones.",
+      "subtitle": "Songs Liner kept while you listened play without a connection until the cache makes room for new ones. Songs from a cached playlist stay until you remove them.",
       "clear_all": "Clear cached songs",
       "empty_title": "No cached songs yet",
-      "empty_subtitle": "Songs you play are kept here for a while, so they start instantly and work offline."
+      "empty_subtitle": "Songs you play are kept here for a while, so they start instantly and work offline.",
+      "cache_playlist": "Cache playlist",
+      "stop_caching": "Stop caching",
+      "count": "{saved} of {total} cached",
+      "waiting_connection": "Waiting for a connection",
+      "waiting_wifi": "Waiting for Wi-Fi",
+      "playlist_cached": "Playlist cached",
+      "some_failed": "Couldn't cache {failed} of this playlist's songs",
+      "already_cached": "Every song here is cached",
+      "already_cached_desc": "You can remove them any time from Cached songs.",
+      "stopped": "Stopped caching",
+      "stopped_desc": "Songs already cached stay on this phone.",
+      "cellular_confirm": "You're on mobile data. Caching {count} songs could use about {size} MB. Continue?"
     },
     "saved_count": "{saved} of {total} downloaded",
     "saved": {

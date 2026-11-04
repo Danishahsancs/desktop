@@ -28,11 +28,13 @@ export interface CachedAudioRecord {
   byteSize: number;
   savedAt: number;
   lastPlayedAt?: number;
+  // from a cached playlist: stays until the user removes it, whatever the cache limit
+  pinned?: boolean;
 }
 
 export type CachedAudioEntry = Pick<
   CachedAudioRecord,
-  "trackId" | "byteSize" | "savedAt" | "lastPlayedAt"
+  "trackId" | "byteSize" | "savedAt" | "lastPlayedAt" | "pinned"
 >;
 
 export interface CachedLyricsRecord {
@@ -328,9 +330,13 @@ class LinerDb {
     blob: Blob,
     mimeType: string,
     lastPlayedAt?: number,
+    pinned?: boolean,
   ): Promise<void> {
     const existing = this.memAudio.get(trackId);
     const now = Date.now();
+    // playing a pinned song can cache it again, and that mustn't unpin it
+    const keepPinned =
+      pinned ?? (existing ?? (await this.getAudio(trackId)))?.pinned;
     const record: CachedAudioRecord = {
       trackId,
       blob,
@@ -338,6 +344,7 @@ class LinerDb {
       byteSize: blob.size,
       savedAt: existing?.savedAt ?? now,
       lastPlayedAt: lastPlayedAt ?? now,
+      ...(keepPinned ? { pinned: true } : {}),
     };
     this.rememberAudio(trackId, record);
 
@@ -363,6 +370,22 @@ class LinerDb {
         req.onerror = () => resolve();
       });
     });
+  }
+
+  async pinAudio(trackId: string): Promise<boolean> {
+    const record = await this.getAudio(trackId);
+    if (!record) return false;
+    record.pinned = true;
+    this.rememberAudio(trackId, record);
+
+    await this.runTransaction("audio", "readwrite", (store) => {
+      return new Promise<void>((resolve, reject) => {
+        const req = store.put(record);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    });
+    return true;
   }
 
   async getOldestAudioRecords(): Promise<CachedAudioRecord[]> {
@@ -412,6 +435,7 @@ class LinerDb {
               byteSize: record.byteSize,
               savedAt: record.savedAt,
               lastPlayedAt: record.lastPlayedAt,
+              pinned: record.pinned,
             });
             cursor.continue();
           } else {

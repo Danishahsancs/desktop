@@ -3,6 +3,7 @@ import { initBackgroundStorageAnalytics } from "@/shared/utils/cacheManager";
 import { initClientVisitorSession } from "@/shared/youtube";
 import { initBundleStampLog } from "@/shared/utils/bundleStampLog";
 import { initSavedTracks } from "@/features/library/saved";
+import { initPlaylistCache } from "@/features/library/cached";
 import { initOfflineMode } from "@/features/connectivity/engine/offlineController";
 
 export function initMainWindowServices() {
@@ -12,4 +13,5 @@ export function initMainWindowServices() {
   initBundleStampLog();
   initOfflineMode();
   initSavedTracks();
+  initPlaylistCache();
 }
