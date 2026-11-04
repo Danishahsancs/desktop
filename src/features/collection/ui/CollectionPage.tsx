@@ -441,7 +441,7 @@ function CollectionContent() {
                         variant="secondary"
                         onClick={handleAddToQueue}
                         disabled={!data || data.tracks.length === 0}
-                        className={`${HERO_BUTTON_CLASS} ${HERO_GLASS_BUTTON_CLASS} px-[22px] ${
+                        className={`${HERO_BUTTON_CLASS} ${HERO_GLASS_BUTTON_CLASS} px-[22px] narrow:!w-[44px] narrow:!px-0 ${
                           // optical centring: with three icon buttons beside it the label reads 1px right
                           !isDailyMix ? "[&>*]:-translate-x-px" : ""
                         }`}
@@ -472,7 +472,7 @@ function CollectionContent() {
                             </motion.span>
                           )}
                         </AnimatePresence>
-                        <span className="truncate">
+                        <span className="truncate narrow:hidden">
                           {t("common.add_to_queue")}
                         </span>
                       </Button>

@@ -816,7 +816,7 @@ function LibraryPlaylistContent() {
                         variant="secondary"
                         onClick={handleAddToQueue}
                         disabled={currentTracks.length === 0}
-                        className={`${HERO_BUTTON_CLASS} ${HERO_GLASS_BUTTON_CLASS} px-[22px] ${
+                        className={`${HERO_BUTTON_CLASS} ${HERO_GLASS_BUTTON_CLASS} px-[22px] narrow:!w-[44px] narrow:!px-0 ${
                           // optical centring: with three icon buttons beside it the label reads 1px right
                           !isLikesMode ? "[&>*]:-translate-x-px" : ""
                         }`}
@@ -847,7 +847,7 @@ function LibraryPlaylistContent() {
                             </motion.span>
                           )}
                         </AnimatePresence>
-                        <span className="truncate">
+                        <span className="truncate narrow:hidden">
                           {t("common.add_to_queue")}
                         </span>
                       </Button>

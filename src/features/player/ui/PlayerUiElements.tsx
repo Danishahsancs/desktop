@@ -56,7 +56,7 @@ export function PlayerUiElements({
     !scaled &&
       (horizontal
         ? "w-[min(360px,34vw,calc(100vh-200px))]"
-        : "w-[min(340px,32vw,calc(100vh-340px))]"),
+        : "w-[min(340px,32vw,calc(100vh-340px))] narrow:w-[min(calc(100vw-56px),calc(100dvh-340px))]"),
   );
 
   return (

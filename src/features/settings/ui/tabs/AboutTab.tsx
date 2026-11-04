@@ -36,7 +36,7 @@ export function AboutTab({ searchQuery }: { searchQuery?: string }) {
   if (!isMatch) return null;
 
   return (
-    <div className="relative flex min-h-[340px] w-full flex-col overflow-hidden rounded-[20px] bg-black/[0.04] p-[28px] dark:bg-white/[0.06]">
+    <div className="relative flex min-h-[340px] w-full flex-col narrow:min-h-0 overflow-hidden rounded-[20px] bg-black/[0.04] p-[28px] dark:bg-white/[0.06]">
       <AboutBackdrop />
       <div className="relative flex items-start justify-between">
         <div className="flex flex-col items-start gap-[8px]">

@@ -89,7 +89,13 @@ export function SettingBlock({ children, ...text }: SettingBlockProps) {
   if (!matchesSearch(text)) return null;
 
   return (
-    <div className={cn(rowSurface, "flex flex-col gap-[12px] py-[10px]")}>
+    // RowText's flex basis is a width in rows, but would be a 200px height in this column
+    <div
+      className={cn(
+        rowSurface,
+        "flex flex-col gap-[12px] py-[10px] [&>div:first-child]:grow-0 [&>div:first-child]:basis-auto",
+      )}
+    >
       <RowText {...text} />
       {children}
     </div>

@@ -52,7 +52,7 @@ export default function AccountCard({
               {titleAccessory}
             </div>
             {subtitle && (
-              <span className="truncate text-[13.5px] text-text-secondary">
+              <span className="truncate text-[13.5px] text-text-secondary narrow:whitespace-normal">
                 {subtitle}
               </span>
             )}
